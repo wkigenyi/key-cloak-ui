@@ -1,0 +1,24 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import
+      - keycloak_data:/opt/keycloak/data
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+volumes:
+  keycloak_data:

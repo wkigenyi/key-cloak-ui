@@ -1,0 +1,4 @@
+{
+  "11111111-1111-1111-1111-111111111111": "$2a$10$replaceWithExportedBcryptHash",
+  "+256700000001": "$2a$10$replaceWithExportedBcryptHash"
+}
