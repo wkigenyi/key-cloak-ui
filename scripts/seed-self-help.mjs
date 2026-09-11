@@ -5,8 +5,13 @@
  *
  * Usage: node scripts/seed-self-help.mjs
  */
-const base = process.env.KEYCLOAK_URL ?? "http://127.0.0.1:8080"
+const base = (process.env.KEYCLOAK_URL ?? "http://127.0.0.1:8080").replace(/\/$/, "")
 const realm = process.env.KEYCLOAK_REALM ?? "app"
+const consoleOrigin = (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "")
+const seedDemoUsers =
+  process.env.KEYCLOAK_SEED_DEMO === "1" ||
+  (process.env.KEYCLOAK_SEED_DEMO !== "0" && base.includes("127.0.0.1"))
+const sslRequired = base.startsWith("https://") ? "external" : "none"
 
 const SELF_HELP_ATTRIBUTE_NAMES = [
   "clientId",
@@ -21,8 +26,8 @@ const SELF_HELP_ATTRIBUTE_NAMES = [
 
 async function token() {
   const body = new URLSearchParams({
-    username: "admin",
-    password: "admin",
+    username: process.env.KEYCLOAK_ADMIN ?? "admin",
+    password: process.env.KEYCLOAK_ADMIN_PASSWORD ?? "admin",
     grant_type: "password",
     client_id: "admin-cli",
   })
@@ -191,8 +196,56 @@ async function upsertSelfHelpUser(accessToken, sample, demoGroupId) {
   return user.username
 }
 
+async function ensureAppRealm(accessToken) {
+  const response = await fetch(`${base}/admin/realms/${realm}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (response.ok) {
+    const current = await response.json()
+    if (current.sslRequired !== sslRequired) {
+      await fetch(`${base}/admin/realms/${realm}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: current.id,
+          realm: current.realm,
+          sslRequired,
+        }),
+      })
+    }
+    return
+  }
+  if (response.status !== 404) {
+    throw new Error(`GET /admin/realms/${realm} ${response.status}`)
+  }
+  const created = await fetch(`${base}/admin/realms`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      realm,
+      displayName: "App template",
+      enabled: true,
+      sslRequired,
+      registrationAllowed: false,
+      resetPasswordAllowed: true,
+      loginWithEmailAllowed: true,
+    }),
+  })
+  if (!created.ok) {
+    throw new Error(`Create realm ${realm} failed: ${created.status} ${await created.text()}`)
+  }
+  console.log(`Created template realm ${realm} (sslRequired=${sslRequired})`)
+}
+
 async function main() {
   const accessToken = await token()
+  await ensureAppRealm(accessToken)
   await ensureUserProfile(accessToken)
   const sacco = await ensureGroup(accessToken, "sacco")
   const demo = await ensureGroup(accessToken, "demo-sacco", sacco.id)
@@ -227,7 +280,10 @@ async function main() {
   }
 
   const seeded = []
-  for (const sample of [
+  if (!seedDemoUsers) {
+    console.log(`Skipping demo users in ${realm} (set KEYCLOAK_SEED_DEMO=1 to add them)`)
+  }
+  for (const sample of seedDemoUsers ? [
     {
       usernames: ["alice", "+256700000001"],
       phone: "+256700000001",
@@ -255,7 +311,7 @@ async function main() {
       enabled: false,
       clientId: "1003",
     },
-  ]) {
+  ] : []) {
     seeded.push(await upsertSelfHelpUser(accessToken, sample, demo?.id))
   }
 
@@ -269,7 +325,11 @@ async function main() {
     await ensureSelfHelpClient(accessToken, name)
   }
   await ensureMasterConsole(accessToken)
-  console.log(`Seeded app template demo users (${seeded.join(", ")})`)
+  console.log(
+    seedDemoUsers
+      ? `Seeded app template demo users (${seeded.join(", ")})`
+      : `Seeded ${realm} template + master keycloak-ui (${consoleOrigin})`,
+  )
 }
 
 const SELF_HELP_MAPPERS = [
@@ -367,6 +427,49 @@ async function ensureSelfHelpClient(accessToken, targetRealm) {
   }
 }
 
+function consoleClientBody(existing = {}) {
+  const redirectUris = new Set([
+    ...(existing.redirectUris ?? []),
+    `${consoleOrigin}/api/auth/callback/keycloak`,
+    "http://localhost:3000/api/auth/callback/keycloak",
+  ])
+  const webOrigins = new Set([
+    ...(existing.webOrigins ?? []),
+    consoleOrigin,
+    "http://localhost:3000",
+  ])
+  const logoutUris = [
+    existing.attributes?.["post.logout.redirect.uris"],
+    `${consoleOrigin}/*`,
+    "http://localhost:3000/*",
+  ]
+    .filter(Boolean)
+    .join("##")
+  return {
+    ...existing,
+    clientId: "keycloak-ui",
+    name: existing.name ?? "Keycloak Admin UI",
+    enabled: true,
+    publicClient: false,
+    secret: process.env.AUTH_KEYCLOAK_SECRET ?? existing.secret ?? "keycloak-ui-dev-secret",
+    protocol: "openid-connect",
+    rootUrl: consoleOrigin,
+    baseUrl: consoleOrigin,
+    redirectUris: [...redirectUris],
+    webOrigins: [...webOrigins],
+    standardFlowEnabled: true,
+    implicitFlowEnabled: false,
+    directAccessGrantsEnabled: false,
+    serviceAccountsEnabled: true,
+    fullScopeAllowed: true,
+    attributes: {
+      ...(existing.attributes ?? {}),
+      "pkce.code.challenge.method": "S256",
+      "post.logout.redirect.uris": logoutUris,
+    },
+  }
+}
+
 async function ensureMasterConsole(masterToken) {
   const clients = await api(
     masterToken,
@@ -380,27 +483,17 @@ async function ensureMasterConsole(masterToken) {
       "/clients",
       {
         method: "POST",
-        body: JSON.stringify({
-          clientId: "keycloak-ui",
-          name: "Keycloak Admin UI",
-          enabled: true,
-          publicClient: false,
-          secret: process.env.AUTH_KEYCLOAK_SECRET ?? "keycloak-ui-dev-secret",
-          protocol: "openid-connect",
-          rootUrl: "http://localhost:3000",
-          baseUrl: "http://localhost:3000",
-          redirectUris: ["http://localhost:3000/api/auth/callback/keycloak"],
-          webOrigins: ["http://localhost:3000"],
-          standardFlowEnabled: true,
-          implicitFlowEnabled: false,
-          directAccessGrantsEnabled: false,
-          serviceAccountsEnabled: true,
-          fullScopeAllowed: true,
-          attributes: {
-            "pkce.code.challenge.method": "S256",
-            "post.logout.redirect.uris": "http://localhost:3000/*",
-          },
-        }),
+        body: JSON.stringify(consoleClientBody()),
+      },
+      "master",
+    )
+  } else {
+    await api(
+      masterToken,
+      `/clients/${clients[0].id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(consoleClientBody(clients[0])),
       },
       "master",
     )

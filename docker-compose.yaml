@@ -1,12 +1,11 @@
-# Same stack as docker-compose.yaml (the file on the VPS). Prefer that name when you scp.
 # VPS (auth.bankayo.io). Postgres is ./data/postgres — do not docker compose down -v.
 # --import-realm only creates realms that are missing (master is left alone).
 #
 # SCP: this file + keycloak/import/app-realm.json
-#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose up -d
 # If https://auth.bankayo.io/realms/app is still 404:
-#   docker compose -f docker-compose.prod.yml --profile import run --rm keycloak-import
-#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose --profile import run --rm keycloak-import
+#   docker compose up -d
 services:
   postgres:
     image: postgres:16-alpine

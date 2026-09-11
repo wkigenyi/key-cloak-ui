@@ -23,29 +23,6 @@
   },
   "clients": [
     {
-      "clientId": "keycloak-ui",
-      "name": "Keycloak Admin UI",
-      "enabled": true,
-      "publicClient": false,
-      "secret": "keycloak-ui-dev-secret",
-      "protocol": "openid-connect",
-      "rootUrl": "http://localhost:3000",
-      "baseUrl": "http://localhost:3000",
-      "redirectUris": ["http://localhost:3000/api/auth/callback/keycloak"],
-      "webOrigins": ["http://localhost:3000"],
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "fullScopeAllowed": true,
-      "attributes": {
-        "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000/*"
-      },
-      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "basic"],
-      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
-    },
-    {
       "clientId": "self-help",
       "name": "Self Help",
       "description": "Public client for the member Self Help app (phone + password).",
