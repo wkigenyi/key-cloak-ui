@@ -8,6 +8,7 @@ import {
 } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
+import { toastFormError } from "@/components/admin/form-action-error"
 import type RealmRepresentation from "@keycloak/keycloak-admin-client/lib/defs/realmRepresentation"
 import type { RealmEventsConfigRepresentation } from "@keycloak/keycloak-admin-client/lib/defs/realmEventsConfigRepresentation"
 import type { KeyMetadataRepresentation } from "@keycloak/keycloak-admin-client/lib/defs/keyMetadataRepresentation"
@@ -922,23 +923,26 @@ export function RealmSettings({
                 try {
                   parsed = JSON.parse(text(data, "userProfile")) as UserProfileConfig
                 } catch {
-                  toast.error("User profile JSON is invalid")
-                  throw new Error("Invalid JSON")
+                  toastFormError(
+                    "Could not save user profile",
+                    "User profile JSON is invalid",
+                  )
+                  return
                 }
                 parsed.unmanagedAttributePolicy = text(
                   data,
                   "unmanagedAttributePolicy",
                 ) as UserProfileConfig["unmanagedAttributePolicy"]
-                try {
-                  await updateRealmUserProfileAction(realmName, parsed)
-                  toast.success("User profile saved")
-                  router.refresh()
-                } catch (error) {
-                  toast.error("Could not save user profile", {
-                    description: error instanceof Error ? error.message : undefined,
-                  })
-                  throw error
+                const result = await updateRealmUserProfileAction(
+                  realmName,
+                  parsed,
+                )
+                if (!result.ok) {
+                  toastFormError("Could not save user profile", result.error)
+                  return
                 }
+                toast.success("User profile saved")
+                router.refresh()
               }}
             >
               <SettingRow title="Unmanaged attributes" labelFor="unmanagedAttributePolicy" compact>

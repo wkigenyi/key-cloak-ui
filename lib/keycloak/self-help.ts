@@ -3,6 +3,20 @@ import type UserRepresentation from "@keycloak/keycloak-admin-client/lib/defs/us
 export const SACCO_PARENT_GROUP = "sacco"
 export const OPERATOR_USERNAMES = new Set(["console-admin"])
 
+/** Declared on the realm user profile so Keycloak does not strip them. */
+export const SELF_HELP_ATTRIBUTE_NAMES = [
+  "clientId",
+  "client_id",
+  "fineract_client_id",
+  "saccoId",
+  "phone",
+  "externalId",
+  "displayName",
+  "provisioned_at",
+  "migration",
+  "supabase_user_id",
+] as const
+
 export type UserKind = "self-help" | "operators" | "all"
 
 export type SelfHelpProfile = {
@@ -25,7 +39,10 @@ export function firstAttribute(
 export function readSelfHelpProfile(
   user: UserRepresentation,
 ): SelfHelpProfile | null {
-  const clientId = firstAttribute(user.attributes, "clientId")
+  const clientId =
+    firstAttribute(user.attributes, "clientId") ||
+    firstAttribute(user.attributes, "fineract_client_id") ||
+    firstAttribute(user.attributes, "client_id")
   const saccoId = firstAttribute(user.attributes, "saccoId")
   if (!clientId) return null
 
@@ -56,6 +73,7 @@ export function toAttributeMap(profile: {
 }): Record<string, string[]> {
   const attributes: Record<string, string[]> = {
     clientId: [profile.clientId],
+    client_id: [profile.clientId],
     fineract_client_id: [profile.clientId],
     saccoId: [profile.saccoId],
   }

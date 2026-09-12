@@ -3,7 +3,10 @@ import "server-only"
 import type RealmRepresentation from "@keycloak/keycloak-admin-client/lib/defs/realmRepresentation"
 import type { RealmEventsConfigRepresentation } from "@keycloak/keycloak-admin-client/lib/defs/realmEventsConfigRepresentation"
 import type { KeyMetadataRepresentation } from "@keycloak/keycloak-admin-client/lib/defs/keyMetadataRepresentation"
-import type { UserProfileConfig } from "@keycloak/keycloak-admin-client/lib/defs/userProfileMetadata"
+import {
+  UnmanagedAttributePolicy,
+  type UserProfileConfig,
+} from "@keycloak/keycloak-admin-client/lib/defs/userProfileMetadata"
 import type ClientPoliciesRepresentation from "@keycloak/keycloak-admin-client/lib/defs/clientPoliciesRepresentation"
 import type ClientProfilesRepresentation from "@keycloak/keycloak-admin-client/lib/defs/clientProfilesRepresentation"
 import {
@@ -23,9 +26,11 @@ import {
   BUILT_IN_CLIENT_IDS,
   CONSOLE_CLIENT_ID,
 } from "@/lib/keycloak/oidc-clients"
+import { SELF_HELP_ATTRIBUTE_NAMES } from "@/lib/keycloak/self-help"
 import {
   MASTER_REALM,
   defaultWorkspaceRealm,
+  getWorkspaceRealm,
   isProtectedRealm,
   isValidRealmName,
 } from "@/lib/keycloak/workspace"
@@ -143,14 +148,62 @@ function templateRealmSettings(
   }
 }
 
+function withSelfHelpProfileAttributes(profile: UserProfileConfig): UserProfileConfig {
+  const existing = new Set(
+    (profile.attributes ?? []).map((attribute) => attribute.name).filter(Boolean),
+  )
+  const attributes = [...(profile.attributes ?? [])]
+  for (const name of SELF_HELP_ATTRIBUTE_NAMES) {
+    if (existing.has(name)) continue
+    attributes.push({
+      name,
+      displayName: name,
+      group: "user-metadata",
+      permissions: { view: ["admin", "user"], edit: ["admin"] },
+      multivalued: false,
+    })
+  }
+  const unmanaged =
+    !profile.unmanagedAttributePolicy ||
+    profile.unmanagedAttributePolicy === UnmanagedAttributePolicy.Disabled
+      ? UnmanagedAttributePolicy.AdminEdit
+      : profile.unmanagedAttributePolicy
+  return {
+    ...profile,
+    attributes,
+    unmanagedAttributePolicy: unmanaged,
+  }
+}
+
+function profileNeedsSelfHelpAttributes(profile: UserProfileConfig) {
+  const existing = new Set(
+    (profile.attributes ?? []).map((attribute) => attribute.name).filter(Boolean),
+  )
+  const missing = SELF_HELP_ATTRIBUTE_NAMES.some((name) => !existing.has(name))
+  const blocked =
+    !profile.unmanagedAttributePolicy ||
+    profile.unmanagedAttributePolicy === UnmanagedAttributePolicy.Disabled
+  return missing || blocked
+}
+
+export async function ensureSelfHelpUserProfile(realm?: string) {
+  const name = realm ?? (await getWorkspaceRealm())
+  const client = await getAdminClient(undefined, name)
+  const profile = await client.users.getProfile()
+  if (!profileNeedsSelfHelpAttributes(profile)) return
+  const { realm: _realm, ...config } = withSelfHelpProfileAttributes(profile) as
+    typeof profile & { realm?: string }
+  await client.users.updateProfile(config)
+}
+
 async function cloneTemplateProfile(fromRealm: string, toRealm: string) {
   const source = await getAdminClient(undefined, fromRealm)
   const target = await getAdminClient(undefined, toRealm)
   try {
     const profile = await source.users.getProfile()
-    const { realm: _realm, ...config } = profile as typeof profile & {
-      realm?: string
-    }
+    const { realm: _realm, ...config } = withSelfHelpProfileAttributes(
+      profile,
+    ) as typeof profile & { realm?: string }
     await target.users.updateProfile(config)
   } catch (error) {
     throw toActionError(error, "Could not copy the template user profile")
@@ -411,16 +464,37 @@ export async function updateRealmEvents(
   await client.realms.updateConfigEvents({ realm }, config)
 }
 
+function toUserProfilePayload(profile: UserProfileConfig): UserProfileConfig {
+  const { realm: _realm, ...rest } = profile as typeof profile & {
+    realm?: string
+  }
+  const next = withSelfHelpProfileAttributes(rest)
+  const groups = [...(next.groups ?? [])]
+  if (!groups.some((group) => group.name === "user-metadata")) {
+    groups.push({
+      name: "user-metadata",
+      displayHeader: "User metadata",
+      displayDescription: "Attributes, which refer to user metadata",
+    })
+  }
+  return {
+    attributes: next.attributes,
+    groups,
+    unmanagedAttributePolicy: next.unmanagedAttributePolicy,
+  }
+}
+
 export async function updateRealmUserProfile(
   realm: string,
   profile: UserProfileConfig,
 ) {
-  const session = await requireRealmManager()
+  await requireRealmManager()
   const client = await getAdminClient(undefined, realm)
-  const { realm: _realm, ...config } = profile as typeof profile & {
-    realm?: string
+  try {
+    await client.users.updateProfile(toUserProfilePayload(profile))
+  } catch (error) {
+    throw toActionError(error, "Could not save user profile")
   }
-  await client.users.updateProfile(config)
 }
 
 export async function updateRealmClientPolicies(

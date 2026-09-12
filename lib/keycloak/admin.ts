@@ -6,6 +6,7 @@ import { requireSession, requireUserManager, requireUserViewer } from "@/lib/aut
 import { canManageUsers } from "@/lib/auth/roles"
 import { getAdminClient } from "@/lib/keycloak/admin-client"
 import { getKeycloakConfig } from "@/lib/keycloak/config"
+import { ensureSelfHelpUserProfile } from "@/lib/keycloak/realms"
 import { MASTER_REALM, getWorkspaceRealm } from "@/lib/keycloak/workspace"
 import {
   normalizeImportEmail,
@@ -258,6 +259,7 @@ export async function createUser(input: {
   const session = await requireUserManager()
   const client = await getAdminClient()
   const saccoId = await getWorkspaceRealm()
+  await ensureSelfHelpUserProfile(saccoId)
   const displayName =
     [input.firstName, input.lastName].filter(Boolean).join(" ") || input.username
 
@@ -594,6 +596,7 @@ export async function importSelfHelpUsers(rows: ImportUserRow[]) {
   }
 
   let client = await getAdminClient()
+  await ensureSelfHelpUserProfile(realm)
   const results: ImportUserResult[] = []
   let created = 0
   let updated = 0

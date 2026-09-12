@@ -88,7 +88,7 @@ export async function updateRealmUserProfileAction(
   realm: string,
   profile: UserProfileConfig,
 ) {
-  return withActionError(async () => {
+  return asActionResult(async () => {
     await updateRealmUserProfile(realm, profile)
     revalidatePath(`/admin/realms/${realm}`)
   }, "Could not save user profile")
