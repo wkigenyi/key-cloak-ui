@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, useTransition, type ReactNode } from "react"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -25,6 +26,7 @@ export function FormSheet({
   formId,
   action,
   submitLabel,
+  pendingLabel = "Saving…",
   showSubmit = true,
   children,
   extra,
@@ -36,11 +38,13 @@ export function FormSheet({
   formId: string
   action: (formData: FormData) => void | Promise<void>
   submitLabel: string
+  pendingLabel?: string
   showSubmit?: boolean
   children: ReactNode
   extra?: ReactNode
 }) {
   const [dismissed, setDismissed] = useState(false)
+  const [pending, startTransition] = useTransition()
 
   useEffect(() => {
     if (open) setDismissed(false)
@@ -50,6 +54,7 @@ export function FormSheet({
     <Sheet
       open={open && !dismissed}
       onOpenChange={(next) => {
+        if (pending && !next) return
         if (!next) setDismissed(true)
         onOpenChange(next)
       }}
@@ -70,12 +75,14 @@ export function FormSheet({
               </SheetDescription>
             </div>
             <SheetClose
+              disabled={pending}
               render={
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Close"
+                  disabled={pending}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <XIcon aria-hidden="true" />
@@ -86,7 +93,16 @@ export function FormSheet({
         </SheetHeader>
         <div className="min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <form id={formId} action={action} className="space-y-4 px-4 py-4">
+            <form
+              id={formId}
+              aria-busy={pending}
+              action={(formData) => {
+                startTransition(async () => {
+                  await action(formData)
+                })
+              }}
+              className="space-y-4 px-4 py-4"
+            >
               {children}
             </form>
             {extra}
@@ -95,15 +111,25 @@ export function FormSheet({
         <SheetFooter className="bg-background shrink-0 border-t">
           <div className="flex w-full gap-2">
             {showSubmit ? (
-              <Button type="submit" form={formId} className="min-w-0 flex-1">
-                {submitLabel}
+              <Button
+                type="submit"
+                form={formId}
+                disabled={pending}
+                aria-busy={pending}
+                className="min-w-0 flex-1"
+              >
+                <PendingSubmitContent pending={pending} pendingLabel={pendingLabel}>
+                  {submitLabel}
+                </PendingSubmitContent>
               </Button>
             ) : null}
             <SheetClose
+              disabled={pending}
               render={
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={pending}
                   className="min-w-0 flex-1"
                 >
                   {showSubmit ? "Cancel" : "Close"}

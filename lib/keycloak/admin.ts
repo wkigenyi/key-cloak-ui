@@ -4,7 +4,7 @@ import type UserRepresentation from "@keycloak/keycloak-admin-client/lib/defs/us
 import { requireSession, requireUserManager, requireUserViewer } from "@/lib/auth/session"
 import { canManageUsers } from "@/lib/auth/roles"
 import { getAdminClient } from "@/lib/keycloak/admin-client"
-import { getWorkspaceRealm } from "@/lib/keycloak/workspace"
+import { MASTER_REALM, getWorkspaceRealm } from "@/lib/keycloak/workspace"
 import {
   isOperatorUsername,
   readSelfHelpProfile,
@@ -232,4 +232,125 @@ export async function resetUserPassword(
   })
 }
 
-export type { UserRepresentation }
+export type ImportUserRow = {
+  username: string
+  clientId: string
+  password?: string
+  email?: string
+  firstName?: string
+  lastName?: string
+  phone?: string
+}
+
+export type ImportUserResult = {
+  username: string
+  status: "created" | "updated" | "skipped"
+  reason?: string
+}
+
+export async function importSelfHelpUsers(rows: ImportUserRow[]) {
+  if (rows.length > 50) {
+    throw new Error("Import at most 50 users per request.")
+  }
+
+  const session = await requireUserManager()
+  const realm = await getWorkspaceRealm()
+  if (realm === MASTER_REALM) {
+    throw new Error("Do not import self-help users into master.")
+  }
+
+  const client = await getAdminClient(session.accessToken!)
+  const results: ImportUserResult[] = []
+  let created = 0
+  let updated = 0
+  let skipped = 0
+
+  for (const row of rows) {
+    const username = row.username.trim()
+    const clientId = row.clientId.trim()
+    if (!username) {
+      skipped += 1
+      results.push({ username: "", status: "skipped", reason: "Username is required" })
+      continue
+    }
+    if (!clientId) {
+      skipped += 1
+      results.push({ username, status: "skipped", reason: "clientId is required" })
+      continue
+    }
+    if (isOperatorUsername(username)) {
+      skipped += 1
+      results.push({ username, status: "skipped", reason: "Reserved operator username" })
+      continue
+    }
+
+    try {
+      const existing = (
+        await client.users.find({ username, exact: true, max: 1 })
+      )[0]
+      const phone = row.phone?.trim() || username
+      const displayName =
+        [row.firstName, row.lastName].filter(Boolean).join(" ") || username
+      const attributes = toAttributeMap({
+        clientId,
+        saccoId: realm,
+        phone,
+        displayName,
+        provisionedAt: new Date().toISOString(),
+        migration: "file-import",
+      })
+
+      if (!existing?.id) {
+        await client.users.create({
+          username,
+          email: row.email || undefined,
+          firstName: row.firstName || undefined,
+          lastName: row.lastName || undefined,
+          enabled: true,
+          emailVerified: Boolean(row.email),
+          requiredActions: row.password ? [] : ["UPDATE_PASSWORD"],
+          attributes,
+          credentials: row.password
+            ? [{ type: "password", value: row.password, temporary: false }]
+            : undefined,
+        })
+        created += 1
+        results.push({ username, status: "created" })
+        continue
+      }
+
+      await client.users.update(
+        { id: existing.id },
+        {
+          ...existing,
+          email: row.email || existing.email,
+          firstName: row.firstName || existing.firstName,
+          lastName: row.lastName || existing.lastName,
+          enabled: true,
+          attributes: { ...existing.attributes, ...attributes },
+        },
+      )
+      if (row.password) {
+        await client.users.resetPassword({
+          id: existing.id,
+          credential: {
+            type: "password",
+            value: row.password,
+            temporary: false,
+          },
+        })
+      }
+      updated += 1
+      results.push({ username, status: "updated" })
+    } catch (error) {
+      skipped += 1
+      results.push({
+        username,
+        status: "skipped",
+        reason: error instanceof Error ? error.message : "Import failed",
+      })
+    }
+  }
+
+  return { results, created, updated, skipped, realm }
+}

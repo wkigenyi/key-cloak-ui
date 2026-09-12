@@ -14,6 +14,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 function sectionLabel(pathname: string) {
   if (pathname.startsWith("/admin/realms")) return "Realms"
   if (pathname.startsWith("/admin/clients")) return "Clients"
+  if (pathname.startsWith("/admin/import")) return "Import"
   if (pathname.startsWith("/admin/roles")) return "Roles"
   return "Self Help Users"
 }
@@ -24,7 +25,9 @@ export function AppHeader({ realm }: { realm: string }) {
     ? "/admin/realms"
     : pathname.startsWith("/admin/clients")
       ? "/admin/clients"
-      : "/admin/users"
+      : pathname.startsWith("/admin/import")
+        ? "/admin/import"
+        : "/admin/users"
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 pt-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">

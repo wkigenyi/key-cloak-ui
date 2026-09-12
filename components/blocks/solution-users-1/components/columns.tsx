@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useState } from "react"
+import { memo, useState, useTransition } from "react"
 import { Badge } from "@/components/reui/badge"
 import { type DataGridFeatures } from "@/components/reui/data-grid/data-grid"
 import { DataGridColumnHeader } from "@/components/reui/data-grid/data-grid-column-header"
@@ -27,6 +27,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -257,6 +258,7 @@ export function ActionsCell({
 }) {
   const [resetOpen, setResetOpen] = useState(false)
   const [password, setPassword] = useState("")
+  const [resetPending, startReset] = useTransition()
   const member = row.original
   const enabled = member.status === "Active"
 
@@ -325,16 +327,22 @@ export function ActionsCell({
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={resetPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={!password}
-              onClick={async () => {
-                await onResetPassword?.(member, password, true)
-                setPassword("")
-                setResetOpen(false)
+              disabled={!password || resetPending}
+              aria-busy={resetPending}
+              onClick={(event) => {
+                event.preventDefault()
+                startReset(async () => {
+                  await onResetPassword?.(member, password, true)
+                  setPassword("")
+                  setResetOpen(false)
+                })
               }}
             >
-              Reset
+              <PendingSubmitContent pending={resetPending} pendingLabel="Resetting…">
+                Reset
+              </PendingSubmitContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

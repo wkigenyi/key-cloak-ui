@@ -41,6 +41,7 @@ export function RealmFormSheet({ canCreate }: { canCreate: boolean }) {
       formId="realm-form"
       action={onCreate}
       submitLabel="Create SACCO"
+      pendingLabel="Creating…"
       showSubmit={canCreate}
     >
       <RealmFormFields />

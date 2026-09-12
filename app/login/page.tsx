@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { signInAction } from "@/app/login/actions"
 import { ThemeToggle } from "@/components/admin/theme-toggle"
-import { Button } from "@/components/ui/button"
+import { FormSubmitButton } from "@/components/admin/form-submit-button"
 import {
   Frame,
   FrameDescription,
@@ -64,9 +64,9 @@ export default async function LoginPage({
               await signInAction(callbackUrl)
             }}
           >
-            <Button type="submit" className="w-full">
+            <FormSubmitButton className="w-full" pendingLabel="Redirecting…">
               Sign in with Keycloak
-            </Button>
+            </FormSubmitButton>
           </form>
           <p className="text-muted-foreground text-xs">
             Local demo: console-admin / admin

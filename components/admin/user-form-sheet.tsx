@@ -83,6 +83,7 @@ export function UserFormSheet({
       formId="user-form"
       action={isCreate ? onCreate : onUpdate}
       submitLabel={isCreate ? "Create user" : "Save changes"}
+      pendingLabel={isCreate ? "Creating…" : "Saving…"}
       showSubmit={canManage && (isCreate || Boolean(user))}
       extra={
         !isCreate && user && canManage ? (

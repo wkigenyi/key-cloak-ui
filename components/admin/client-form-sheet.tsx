@@ -76,6 +76,7 @@ export function ClientFormSheet({
       formId="client-form"
       action={isCreate ? onCreate : onUpdate}
       submitLabel={isCreate ? "Create application" : "Save changes"}
+      pendingLabel={isCreate ? "Creating…" : "Saving…"}
       showSubmit={canManage && (isCreate || Boolean(client))}
     >
       <ClientFormFields

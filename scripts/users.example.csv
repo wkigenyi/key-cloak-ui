@@ -1,0 +1,3 @@
+username,clientId,password,email,firstName,lastName
++256700000001,1001,change-me,alice@example.com,Alice,Nguyen
++256700000002,1002,,bob@example.com,Bob,Okoye

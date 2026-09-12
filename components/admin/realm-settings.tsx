@@ -37,6 +37,7 @@ import {
   FramePanel,
   FrameTitle,
 } from "@/components/reui/frame"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { Button } from "@/components/ui/button"
 import { FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -181,8 +182,10 @@ function SettingsSection({
         </FramePanel>
         {canManage ? (
           <FrameFooter className="flex-row justify-end gap-2">
-            <Button type="submit" disabled={!dirty || pending}>
-              {pending ? "Saving…" : "Save changes"}
+            <Button type="submit" disabled={!dirty || pending} aria-busy={pending}>
+              <PendingSubmitContent pending={pending} pendingLabel="Saving…">
+                Save changes
+              </PendingSubmitContent>
             </Button>
           </FrameFooter>
         ) : null}

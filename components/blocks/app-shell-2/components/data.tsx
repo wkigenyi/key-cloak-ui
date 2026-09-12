@@ -5,6 +5,7 @@ import {
   GlobeIcon,
   ShieldCheckIcon,
   UserCircleIcon,
+  UploadIcon,
 } from "lucide-react"
 
 export type NavChild = {
@@ -56,6 +57,12 @@ export const NAV_MAIN: NavItem[] = [
     label: "Self Help Users",
     href: "/admin/users",
     icon: <UsersIcon aria-hidden="true" />,
+  },
+  {
+    id: "import",
+    label: "Import",
+    href: "/admin/import",
+    icon: <UploadIcon aria-hidden="true" />,
   },
   {
     id: "clients",

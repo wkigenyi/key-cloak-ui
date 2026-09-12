@@ -1,6 +1,6 @@
 import { resetUserPasswordAction } from "@/app/admin/users/actions"
 import { CheckboxField } from "@/components/admin/checkbox-field"
-import { Button } from "@/components/ui/button"
+import { FormSubmitButton } from "@/components/admin/form-submit-button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
@@ -33,9 +33,9 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
         label="Temporary"
         defaultChecked
       />
-      <Button type="submit" variant="outline" size="sm">
+      <FormSubmitButton variant="outline" size="sm" pendingLabel="Resetting…">
         Reset password
-      </Button>
+      </FormSubmitButton>
     </form>
   )
 }

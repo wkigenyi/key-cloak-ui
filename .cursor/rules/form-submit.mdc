@@ -1,0 +1,28 @@
+---
+description: Disable submit and show a loading state while a form is in flight
+globs: "**/*.{tsx,ts}"
+alwaysApply: true
+---
+
+# Form submit loading
+
+When the user submits a form (create realm, create user, save settings, import, sign-in, reset password), the submit control must:
+
+1. Show a loading state (`Spinner` + pending label such as “Creating…” / “Saving…”).
+2. Be `disabled` and `aria-busy` until the server action finishes.
+3. Prevent a second click.
+
+Use `FormSubmitButton` / `PendingSubmitContent` from `components/admin/form-submit-button.tsx`.
+
+- Button **inside** a `<form action={...}>`: `FormSubmitButton` (`useFormStatus`).
+- Button **outside** the form (sheet footer `form={id}`): wrap the action in `useTransition` like `FormSheet`.
+- Programmatic submit (`onClick` / confirm dialogs): `useTransition` or local `pending`, then `PendingSubmitContent`.
+- Keep the dialog/sheet open and disable Cancel until the promise settles.
+
+```tsx
+// ❌ BAD
+<Button type="submit">Create SACCO</Button>
+
+// ✅ GOOD — inside the form
+<FormSubmitButton pendingLabel="Creating…">Create SACCO</FormSubmitButton>
+```

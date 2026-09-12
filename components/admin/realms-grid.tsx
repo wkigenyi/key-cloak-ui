@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
@@ -25,6 +25,7 @@ import {
   deleteRealmAction,
   setRealmEnabledAction,
 } from "@/app/admin/realms/actions"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -79,6 +80,7 @@ export function RealmsGrid({
 }) {
   const router = useRouter()
   const [pendingDelete, setPendingDelete] = useState<AdminRealm | null>(null)
+  const [deleting, startDelete] = useTransition()
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
@@ -104,18 +106,20 @@ export function RealmsGrid({
     [router],
   )
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!pendingDelete) return
-    try {
-      await deleteRealmAction(pendingDelete.realm)
-      toast.success("Realm deleted", { description: pendingDelete.realm })
-      setPendingDelete(null)
-      router.refresh()
-    } catch (error) {
-      toast.error("Could not delete realm", {
-        description: error instanceof Error ? error.message : undefined,
-      })
-    }
+    startDelete(async () => {
+      try {
+        await deleteRealmAction(pendingDelete.realm)
+        toast.success("Realm deleted", { description: pendingDelete.realm })
+        setPendingDelete(null)
+        router.refresh()
+      } catch (error) {
+        toast.error("Could not delete realm", {
+          description: error instanceof Error ? error.message : undefined,
+        })
+      }
+    })
   }, [pendingDelete, router])
 
   const columns = useMemo<ColumnDef<DataGridFeatures, AdminRealm>[]>(
@@ -313,7 +317,7 @@ export function RealmsGrid({
       <AlertDialog
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => {
-          if (!open) setPendingDelete(null)
+          if (!open && !deleting) setPendingDelete(null)
         }}
       >
         <AlertDialogContent>
@@ -325,9 +329,19 @@ export function RealmsGrid({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={handleDelete}>
-              Delete
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleting}
+              aria-busy={deleting}
+              onClick={(event) => {
+                event.preventDefault()
+                handleDelete()
+              }}
+            >
+              <PendingSubmitContent pending={deleting} pendingLabel="Deleting…">
+                Delete
+              </PendingSubmitContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
