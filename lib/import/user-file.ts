@@ -47,7 +47,7 @@ export function normalizeImportEmail(value: string | undefined) {
 export function flagImportRow(row: ImportFileRow): string | undefined {
   if (!row.username) return "Phone or email is required"
   if (!row.clientId) return "clientId is required"
-  if (!row.externalId) return "externalId is required"
+  if (!row.externalId?.trim()) return "externalId is required"
   return undefined
 }
 

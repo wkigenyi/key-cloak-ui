@@ -629,12 +629,24 @@ export async function importSelfHelpUsers(rows: ImportUserRow[]) {
       })
       continue
     }
+    if (!externalId) {
+      skipped += 1
+      results.push({
+        username: label,
+        status: "skipped",
+        reason: "externalId is required",
+        profile: false,
+        password: false,
+        email: false,
+      })
+      continue
+    }
     if (!password) {
       skipped += 1
       results.push({
         username: label,
         status: "skipped",
-        reason: "externalId is required (used as the password)",
+        reason: "Password is required",
         profile: false,
         password: false,
         email: false,
