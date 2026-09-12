@@ -29,6 +29,7 @@ export function toMember(user: AdminUser): IMember {
     clientId: user.clientId,
     saccoId: user.saccoId,
     phone: user.phone,
+    username: user.username,
     kind: user.kind,
   }
 }

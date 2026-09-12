@@ -1,6 +1,7 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Badge } from "@/components/reui/badge"
 import {
   Frame,
@@ -11,7 +12,12 @@ import {
   FrameTitle,
 } from "@/components/reui/frame"
 import { toast } from "sonner"
-
+import {
+  logoutUserSessionAction,
+  logoutUserSessionsAction,
+} from "@/app/admin/users/actions"
+import { toastFormError } from "@/components/admin/form-action-error"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { Button } from "@/components/ui/button"
 import {
   Item,
@@ -22,8 +28,13 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { Separator } from "@/components/ui/separator"
-import { MEMBER_SESSIONS, TOAST_SUCCESS_ICON } from "./data"
-import { LogOutIcon } from "lucide-react"
+import type { UserSessionInfo } from "@/lib/keycloak/admin"
+import { MonitorIcon, LogOutIcon } from "lucide-react"
+
+function formatWhen(iso: string) {
+  if (!iso) return "—"
+  return new Date(iso).toLocaleString()
+}
 
 function DotSeparator() {
   return (
@@ -34,26 +45,41 @@ function DotSeparator() {
   )
 }
 
-export function SessionsTabContent() {
-  const [sessions, setSessions] = useState(MEMBER_SESSIONS)
+export function SessionsTabContent({
+  userId,
+  sessions,
+  canManage,
+}: {
+  userId: string
+  sessions: UserSessionInfo[]
+  canManage: boolean
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
 
-  const handleRevoke = (id: string, device: string) => {
-    setSessions((current) => current.filter((session) => session.id !== id))
-    toast.success("Session revoked", {
-      description: `${device} signed out. ${id} cannot reconnect.`,
-      icon: TOAST_SUCCESS_ICON,
+  function revokeOne(sessionId: string) {
+    startTransition(async () => {
+      const result = await logoutUserSessionAction(userId, sessionId)
+      if (!result.ok) {
+        toastFormError("Could not revoke session", result.error)
+        return
+      }
+      toast.success("Session revoked")
+      router.refresh()
     })
   }
 
-  const handleRevokeOthers = () => {
-    setSessions((current) => current.filter((session) => session.current))
-    toast.success("Other sessions revoked", {
-      description: "Only the current Chrome on macOS session stays signed in.",
-      icon: TOAST_SUCCESS_ICON,
+  function revokeAll() {
+    startTransition(async () => {
+      const result = await logoutUserSessionsAction(userId)
+      if (!result.ok) {
+        toastFormError("Could not sign out sessions", result.error)
+        return
+      }
+      toast.success("All sessions signed out")
+      router.refresh()
     })
   }
-
-  const others = sessions.filter((session) => !session.current).length
 
   return (
     <div className="space-y-4">
@@ -61,76 +87,88 @@ export function SessionsTabContent() {
         <FrameHeader>
           <FrameTitle className="capitalize">Active Sessions</FrameTitle>
           <FrameDescription className="dark:text-foreground/70 flex items-center gap-1.5">
-            <span>{sessions.length} signed in</span>
-            <DotSeparator />
-            <span>1 current</span>
+            <span>
+              {sessions.length} signed in
+            </span>
+            {sessions[0]?.lastAccess ? (
+              <>
+                <DotSeparator />
+                <span>Last seen {formatWhen(sessions[0].lastAccess)}</span>
+              </>
+            ) : null}
           </FrameDescription>
         </FrameHeader>
-
         <FramePanel className="px-5 py-2">
           {sessions.length > 0 ? (
             <div className="flex flex-col">
               {sessions.map((session, index) => (
                 <Fragment key={session.id}>
                   {index > 0 ? <Separator /> : null}
-
                   <Item size="sm" className="px-0">
                     <ItemMedia variant="icon">
                       <Item className="border-background bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center border-2 p-0 shadow-[0_1px_3px_0_rgba(0,0,0,0.14)] dark:border [&_svg]:size-4">
-                        {session.icon}
+                        <MonitorIcon aria-hidden="true" />
                       </Item>
                     </ItemMedia>
-
                     <ItemContent className="min-w-0 gap-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <ItemTitle>{session.device}</ItemTitle>
-                        {session.current ? (
-                          <Badge variant="success-light">Current</Badge>
+                        <ItemTitle>
+                          {session.clients[0] || "Keycloak session"}
+                        </ItemTitle>
+                        {session.clients.length > 1 ? (
+                          <Badge variant="secondary">
+                            {session.clients.length} clients
+                          </Badge>
                         ) : null}
                       </div>
                       <ItemDescription className="flex items-center gap-1.5">
-                        <span>{session.city}</span>
+                        <span>{session.ip || "Unknown IP"}</span>
                         <DotSeparator />
-                        <span>{session.ip}</span>
+                        <span>Started {formatWhen(session.startedAt)}</span>
                       </ItemDescription>
                       <p className="text-muted-foreground truncate text-sm">
-                        Last seen {session.lastSeen}
+                        Last seen {formatWhen(session.lastAccess)}
                       </p>
                     </ItemContent>
-
-                    <ItemActions className="self-center">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={session.current}
-                        onClick={() => handleRevoke(session.id, session.device)}
-                      >
-                        Revoke
-                      </Button>
-                    </ItemActions>
+                    {canManage ? (
+                      <ItemActions className="self-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={pending}
+                          onClick={() => revokeOne(session.id)}
+                        >
+                          Revoke
+                        </Button>
+                      </ItemActions>
+                    ) : null}
                   </Item>
                 </Fragment>
               ))}
             </div>
           ) : (
             <div className="text-muted-foreground py-8 text-center text-sm">
-              No active sessions. New sign-ins from Nora Vale land here.
+              No active sessions for this user.
             </div>
           )}
         </FramePanel>
-
-        <FrameFooter className="flex-row justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={others === 0}
-            onClick={handleRevokeOthers}
-          >
-            <LogOutIcon data-icon="inline-start" aria-hidden="true" />
-            Revoke Other Sessions
-          </Button>
-        </FrameFooter>
+        {canManage ? (
+          <FrameFooter className="flex-row justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending || sessions.length === 0}
+              aria-busy={pending}
+              onClick={revokeAll}
+            >
+              <PendingSubmitContent pending={pending} pendingLabel="Signing out…">
+                <LogOutIcon data-icon="inline-start" aria-hidden="true" />
+                Sign out all sessions
+              </PendingSubmitContent>
+            </Button>
+          </FrameFooter>
+        ) : null}
       </Frame>
     </div>
   )

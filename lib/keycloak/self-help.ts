@@ -9,6 +9,7 @@ export type SelfHelpProfile = {
   clientId: string
   saccoId: string
   phone?: string
+  externalId?: string
   displayName?: string
   provisionedAt?: string
   migration?: string
@@ -32,6 +33,7 @@ export function readSelfHelpProfile(
     clientId,
     saccoId,
     phone: firstAttribute(user.attributes, "phone") || undefined,
+    externalId: firstAttribute(user.attributes, "externalId") || undefined,
     displayName: firstAttribute(user.attributes, "displayName") || undefined,
     provisionedAt:
       firstAttribute(user.attributes, "provisioned_at") || undefined,
@@ -47,6 +49,7 @@ export function toAttributeMap(profile: {
   clientId: string
   saccoId: string
   phone?: string
+  externalId?: string
   displayName?: string
   provisionedAt?: string
   migration?: string
@@ -57,6 +60,7 @@ export function toAttributeMap(profile: {
     saccoId: [profile.saccoId],
   }
   if (profile.phone) attributes.phone = [profile.phone]
+  if (profile.externalId) attributes.externalId = [profile.externalId]
   if (profile.displayName) attributes.displayName = [profile.displayName]
   if (profile.provisionedAt) attributes.provisioned_at = [profile.provisionedAt]
   if (profile.migration) attributes.migration = [profile.migration]

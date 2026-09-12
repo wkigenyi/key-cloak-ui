@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -33,7 +34,7 @@ function NavSubItem({ child }: { child: NavChild }) {
     <SidebarMenuSubItem>
       {/* Sidebar */}
       <SidebarMenuSubButton
-        render={<a href={child.href ?? "#"} />}
+        render={<Link href={child.href ?? "#"} />}
         isActive={child.isActive}
       >
         <span>{child.label}</span>
@@ -89,7 +90,7 @@ function CollapsedNavItem({
             {item.children.map((child) => (
               <DropdownMenuItem
                 key={child.id}
-                render={<a href={child.href ?? "#"} />}
+                render={<Link href={child.href ?? "#"} />}
               >
                 {child.label}
               </DropdownMenuItem>
@@ -169,7 +170,7 @@ function LeafNavItem({ item }: { item: NavItem }) {
         isActive={isActive}
         disabled={item.disabled}
         render={
-          item.disabled ? undefined : <a href={item.href ?? "#"} />
+          item.disabled ? undefined : <Link href={item.href ?? "#"} />
         }
       >
         {item.icon}

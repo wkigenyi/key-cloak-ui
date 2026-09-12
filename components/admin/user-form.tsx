@@ -1,7 +1,21 @@
 import { CheckboxField } from "@/components/admin/checkbox-field"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import type { AdminUser } from "@/lib/keycloak/admin"
+
+export function userFormFieldsKey(user?: AdminUser) {
+  if (!user) return "create"
+  return [
+    user.id,
+    user.username,
+    user.email,
+    user.firstName,
+    user.lastName,
+    user.phone,
+    user.clientId,
+    user.enabled,
+  ].join(":")
+}
 
 export function UserFormFields({
   user,
@@ -24,12 +38,17 @@ export function UserFormFields({
         <Input
           id="username"
           name="username"
-          required={!isEdit}
-          defaultValue={user?.username}
-          disabled={isEdit || disabled}
+          required={!isOperator}
+          defaultValue={user?.username ?? ""}
+          disabled={disabled || isOperator}
           autoComplete="off"
           placeholder="Phone or email"
         />
+        <FieldDescription>
+          {isOperator
+            ? "Operator login names cannot be changed."
+            : "Keycloak login name. Use a phone, or email if there is no phone."}
+        </FieldDescription>
       </Field>
       {!isOperator ? (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -39,7 +58,7 @@ export function UserFormFields({
               id="clientId"
               name="clientId"
               required={!isEdit}
-              defaultValue={user?.clientId}
+              defaultValue={user?.clientId ?? ""}
               disabled={disabled}
             />
           </Field>
@@ -60,7 +79,7 @@ export function UserFormFields({
         <Input
           id="phone"
           name="phone"
-          defaultValue={user?.phone}
+          defaultValue={user?.phone ?? ""}
           disabled={disabled}
           autoComplete="off"
         />
@@ -71,7 +90,7 @@ export function UserFormFields({
           id="email"
           name="email"
           type="email"
-          defaultValue={user?.email}
+          defaultValue={user?.email ?? ""}
           disabled={disabled}
           autoComplete="off"
         />
@@ -82,7 +101,7 @@ export function UserFormFields({
           <Input
             id="firstName"
             name="firstName"
-            defaultValue={user?.firstName}
+            defaultValue={user?.firstName ?? ""}
             disabled={disabled}
           />
         </Field>
@@ -91,7 +110,7 @@ export function UserFormFields({
           <Input
             id="lastName"
             name="lastName"
-            defaultValue={user?.lastName}
+            defaultValue={user?.lastName ?? ""}
             disabled={disabled}
           />
         </Field>

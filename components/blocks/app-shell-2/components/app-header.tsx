@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Breadcrumb,
@@ -7,6 +8,7 @@ import {
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
+  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { ThemeToggle } from "@/components/admin/theme-toggle"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -28,6 +30,7 @@ export function AppHeader({ realm }: { realm: string }) {
       : pathname.startsWith("/admin/import")
         ? "/admin/import"
         : "/admin/users"
+  const userDetail = /^\/admin\/users\/[^/]+$/.test(pathname)
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 pt-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -37,11 +40,28 @@ export function AppHeader({ realm }: { realm: string }) {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbLink href={home}>{realm}</BreadcrumbLink>
+                <BreadcrumbLink render={<Link href={home} />}>
+                  {realm}
+                </BreadcrumbLink>
               </BreadcrumbItem>
+              <BreadcrumbSeparator />
               <BreadcrumbItem>
-                <BreadcrumbPage>{sectionLabel(pathname)}</BreadcrumbPage>
+                {userDetail ? (
+                  <BreadcrumbLink render={<Link href="/admin/users" />}>
+                    Self Help Users
+                  </BreadcrumbLink>
+                ) : (
+                  <BreadcrumbPage>{sectionLabel(pathname)}</BreadcrumbPage>
+                )}
               </BreadcrumbItem>
+              {userDetail ? (
+                <>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>User</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </>
+              ) : null}
             </BreadcrumbList>
           </Breadcrumb>
         </div>

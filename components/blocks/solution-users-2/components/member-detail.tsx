@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ComponentType, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Badge } from "@/components/reui/badge"
 
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils"
 import {
   Avatar,
   AvatarFallback,
-  AvatarImage,
 } from "@/components/ui/avatar"
 import {
   Tabs,
@@ -16,16 +15,16 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import type { AdminUser, UserDetail } from "@/lib/keycloak/admin"
 import { AccessTabContent } from "./access-tab"
 import { ActivityTabContent } from "./activity-tab"
 import { AuthenticationTabContent } from "./authentication-tab"
 import { DangerTabContent } from "./danger-tab"
-import { MEMBER_IDENTITY } from "./data"
 import { SessionsTabContent } from "./sessions-tab"
 import { UsersIcon, ShieldCheckIcon, MonitorIcon, ListChecksIcon, Trash2Icon } from "lucide-react"
 
 type MemberTabValue =
-  | "access"
+  | "profile"
   | "authentication"
   | "sessions"
   | "activity"
@@ -35,49 +34,33 @@ type MemberTabConfig = {
   value: MemberTabValue
   label: string
   icon: ReactNode
-  component: ComponentType
 }
 
 const MEMBER_TABS: MemberTabConfig[] = [
   {
-    value: "access",
-    label: "Access",
-    icon: (
-      <UsersIcon aria-hidden="true" />
-    ),
-    component: AccessTabContent,
+    value: "profile",
+    label: "Profile",
+    icon: <UsersIcon aria-hidden="true" />,
   },
   {
     value: "authentication",
     label: "Authentication",
-    icon: (
-      <ShieldCheckIcon aria-hidden="true" />
-    ),
-    component: AuthenticationTabContent,
+    icon: <ShieldCheckIcon aria-hidden="true" />,
   },
   {
     value: "sessions",
     label: "Sessions",
-    icon: (
-      <MonitorIcon aria-hidden="true" />
-    ),
-    component: SessionsTabContent,
+    icon: <MonitorIcon aria-hidden="true" />,
   },
   {
     value: "activity",
     label: "Activity",
-    icon: (
-      <ListChecksIcon aria-hidden="true" />
-    ),
-    component: ActivityTabContent,
+    icon: <ListChecksIcon aria-hidden="true" />,
   },
   {
     value: "danger",
     label: "Danger zone",
-    icon: (
-      <Trash2Icon aria-hidden="true" />
-    ),
-    component: DangerTabContent,
+    icon: <Trash2Icon aria-hidden="true" />,
   },
 ]
 
@@ -90,42 +73,76 @@ function DotSeparator() {
   )
 }
 
-export function MemberDetail() {
+function userDisplayName(user: AdminUser) {
+  return (
+    user.displayName ||
+    [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+    user.username
+  )
+}
+
+function userInitials(user: AdminUser) {
+  const first = user.firstName?.trim()?.[0]
+  const last = user.lastName?.trim()?.[0]
+  if (first || last) return `${first ?? ""}${last ?? ""}`.toUpperCase()
+  return userDisplayName(user).slice(0, 2).toUpperCase() || "?"
+}
+
+function formatWhen(iso: string) {
+  if (!iso) return ""
+  return new Date(iso).toLocaleString()
+}
+
+export function MemberDetail({
+  detail,
+  saccoId,
+}: {
+  detail: UserDetail
+  saccoId: string
+}) {
   const isMobile = useIsMobile()
-  const [activeTab, setActiveTab] = useState<MemberTabValue>("access")
+  const [activeTab, setActiveTab] = useState<MemberTabValue>("profile")
+  const { user, createdAt, sessions, credentials, activity, canManage } = detail
+  const name = userDisplayName(user)
+  const subtitle = user.email || user.phone || user.username
 
   return (
     <div className="w-full max-w-4xl space-y-8">
-      {/* Identity header */}
       <header className="flex flex-wrap items-center gap-4 px-1">
         <Avatar className="size-14 border">
-          <AvatarImage
-            src={MEMBER_IDENTITY.avatar}
-            alt={MEMBER_IDENTITY.name}
-          />
           <AvatarFallback className="text-sm font-medium">
-            {MEMBER_IDENTITY.initials}
+            {userInitials(user)}
           </AvatarFallback>
         </Avatar>
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight">
-              {MEMBER_IDENTITY.name}
-            </h1>
-            <Badge variant={MEMBER_IDENTITY.statusVariant}>
-              {MEMBER_IDENTITY.status}
+            <h1 className="text-xl font-semibold tracking-tight">{name}</h1>
+            <Badge variant={user.enabled ? "success-light" : "warning-light"}>
+              {user.enabled ? "Active" : "Disabled"}
+            </Badge>
+            <Badge variant="secondary">
+              {user.kind === "self-help" ? "Self Help" : "Operator"}
             </Badge>
           </div>
           <p className="text-muted-foreground flex items-center gap-1.5 truncate text-sm">
-            <span className="truncate">{MEMBER_IDENTITY.email}</span>
-            <DotSeparator />
-            <span className="truncate">{MEMBER_IDENTITY.team}</span>
+            <span className="truncate">{subtitle}</span>
+            {user.username && subtitle !== user.username ? (
+              <>
+                <DotSeparator />
+                <span className="truncate">{user.username}</span>
+              </>
+            ) : null}
+            {createdAt ? (
+              <>
+                <DotSeparator />
+                <span className="truncate">Created {formatWhen(createdAt)}</span>
+              </>
+            ) : null}
           </p>
         </div>
       </header>
 
-      {/* Tabs */}
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as MemberTabValue)}
@@ -135,15 +152,35 @@ export function MemberDetail() {
         <SidebarRail isMobile={isMobile} activeValue={activeTab} />
 
         <div className="min-w-0 flex-1">
-          {MEMBER_TABS.map((tab) => {
-            const TabComponent = tab.component
-
-            return (
-              <TabsContent key={tab.value} value={tab.value} className="mt-0">
-                <TabComponent />
-              </TabsContent>
-            )
-          })}
+          <TabsContent value="profile" className="mt-0">
+            <AccessTabContent
+              user={user}
+              saccoId={saccoId}
+              canManage={canManage}
+            />
+          </TabsContent>
+          <TabsContent value="authentication" className="mt-0">
+            <AuthenticationTabContent
+              userId={user.id}
+              email={user.email}
+              emailVerified={user.emailVerified}
+              credentials={credentials}
+              canManage={canManage}
+            />
+          </TabsContent>
+          <TabsContent value="sessions" className="mt-0">
+            <SessionsTabContent
+              userId={user.id}
+              sessions={sessions}
+              canManage={canManage}
+            />
+          </TabsContent>
+          <TabsContent value="activity" className="mt-0">
+            <ActivityTabContent activity={activity} />
+          </TabsContent>
+          <TabsContent value="danger" className="mt-0">
+            <DangerTabContent user={user} canManage={canManage} />
+          </TabsContent>
         </div>
       </Tabs>
     </div>

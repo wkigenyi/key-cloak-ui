@@ -96,9 +96,16 @@ export function FormSheet({
             <form
               id={formId}
               aria-busy={pending}
-              action={(formData) => {
+              onSubmit={(event) => {
+                event.preventDefault()
+                const formData = new FormData(event.currentTarget)
                 startTransition(async () => {
-                  await action(formData)
+                  try {
+                    await action(formData)
+                  } catch {
+                    // Caller toasts. Do not rethrow — Next 16 treats a thrown
+                    // form action as a runtime overlay.
+                  }
                 })
               }}
               className="space-y-4 px-4 py-4"

@@ -18,8 +18,7 @@ export default function ForbiddenPage() {
       </FrameHeader>
       <FramePanel>
         <p className="text-muted-foreground text-sm">
-          Sign in as console-admin, or assign those roles in the Keycloak
-          master console.
+          Ask an operator to assign those roles in the Keycloak master console.
         </p>
       </FramePanel>
     </Frame>

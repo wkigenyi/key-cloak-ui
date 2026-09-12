@@ -1,9 +1,7 @@
-import { MemberDetail } from "./components/member-detail"
-
 export function Page() {
   return (
-    <div className="flex min-h-svh w-full items-start justify-center p-4 sm:p-8 md:p-12">
-      <MemberDetail />
+    <div className="text-muted-foreground flex min-h-svh w-full items-center justify-center p-8 text-sm">
+      User detail is served at /admin/users/[id].
     </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   updateClientAction,
 } from "@/app/admin/clients/actions"
 import { ClientFormFields } from "@/components/admin/client-form"
+import { toastFormError } from "@/components/admin/form-action-error"
 import { FormSheet } from "@/components/admin/form-sheet"
 import { withSheetParams } from "@/components/admin/sheet-params"
 import type { AdminClient } from "@/lib/keycloak/oidc-clients"
@@ -41,9 +42,7 @@ export function ClientFormSheet({
       openEdit(id)
       router.refresh()
     } catch (error) {
-      toast.error("Could not create client", {
-        description: error instanceof Error ? error.message : undefined,
-      })
+      toastFormError("Could not create client", error)
     }
   }
 
@@ -53,9 +52,7 @@ export function ClientFormSheet({
       toast.success("Client updated")
       router.refresh()
     } catch (error) {
-      toast.error("Could not update client", {
-        description: error instanceof Error ? error.message : undefined,
-      })
+      toastFormError("Could not update client", error)
     }
   }
 

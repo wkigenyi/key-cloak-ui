@@ -49,12 +49,13 @@ import {
   type MemberStatus,
   type TeamLabel,
 } from "./data"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   resetUserPasswordAction,
   setUserEnabledAction,
 } from "@/app/admin/users/actions"
-import { UserIcon, MailIcon, CircleDotIcon, UserPlusIcon, FilterIcon, FunnelXIcon, Settings2Icon } from "lucide-react"
+import { UserIcon, MailIcon, AtSignIcon, CircleDotIcon, UserPlusIcon, FilterIcon, FunnelXIcon, Settings2Icon, UploadIcon } from "lucide-react"
 
 // ── Helpers ──
 
@@ -93,6 +94,7 @@ function serializeActiveFiltersKey(active: FilterCondition[]) {
 
 function filterFieldValue(item: IMember, field: string): unknown {
   if (field === "teams") return item.teams.join(" ")
+  if (field === "username") return item.username || item.title
   return item[field as keyof IMember]
 }
 
@@ -238,6 +240,7 @@ export function MembersGrid({
   canManage,
   realm,
   onCreate,
+  onView,
   onEdit,
 }: {
   members: IMember[]
@@ -245,6 +248,7 @@ export function MembersGrid({
   canManage: boolean
   realm: string
   onCreate?: () => void
+  onView?: (member: IMember) => void
   onEdit?: (member: IMember) => void
 }) {
   const [pagination, setPagination] = useState<PaginationState>({
@@ -293,6 +297,15 @@ export function MembersGrid({
         ),
         type: "text",
         placeholder: "Search...",
+      },
+      {
+        id: "username",
+        label: "Username",
+        icon: (
+          <AtSignIcon className="size-3.5" aria-hidden />
+        ),
+        type: "text",
+        placeholder: "Phone or email login",
       },
       {
         id: "email",
@@ -387,9 +400,13 @@ export function MembersGrid({
 
   const handleView = useCallback(
     (member: IMember) => {
+      if (onView) {
+        onView(member)
+        return
+      }
       onEdit?.(member)
     },
-    [onEdit],
+    [onView, onEdit],
   )
 
   const handleEdit = useCallback(
@@ -534,11 +551,24 @@ export function MembersGrid({
                 </span>
               </FrameDescription>
             </div>
-            {canManage && onCreate ? (
-              <Button type="button" size="default" onClick={onCreate}>
-                <UserPlusIcon aria-hidden="true" />
-                Create self-help user
-              </Button>
+            {canManage ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="default"
+                  nativeButton={false}
+                  render={<Link href="/admin/import" />}
+                >
+                  <UploadIcon aria-hidden="true" />
+                  Import
+                </Button>
+                {onCreate ? (
+                  <Button type="button" size="default" onClick={onCreate}>
+                    <UserPlusIcon aria-hidden="true" />
+                    Create self-help user
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </FrameHeader>
           <FramePanel className="p-0 shadow-none">

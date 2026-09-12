@@ -1,28 +1,35 @@
 ---
-description: Disable submit and show a loading state while a form is in flight
+description: Form submit loading and keep values after a failed submit
 globs: "**/*.{tsx,ts}"
 alwaysApply: true
 ---
 
-# Form submit loading
+# Form submit
 
-When the user submits a form (create realm, create user, save settings, import, sign-in, reset password), the submit control must:
+When the user submits a form (create realm, create user, save settings, import, sign-in, reset password):
 
 1. Show a loading state (`Spinner` + pending label such as “Creating…” / “Saving…”).
 2. Be `disabled` and `aria-busy` until the server action finishes.
 3. Prevent a second click.
+4. **Keep the fields populated unless the action succeeds.** Do not reset, remount, or close the sheet on a thrown error or a returned failure. Only clear or navigate after a successful result.
 
 Use `FormSubmitButton` / `PendingSubmitContent` from `components/admin/form-submit-button.tsx`.
 
 - Button **inside** a `<form action={...}>`: `FormSubmitButton` (`useFormStatus`).
-- Button **outside** the form (sheet footer `form={id}`): wrap the action in `useTransition` like `FormSheet`.
+- Sheet footers: `FormSheet` uses `onSubmit` + `preventDefault` + `useTransition` so React never resets the fields and Next 16 does not show a form-action overlay.
 - Programmatic submit (`onClick` / confirm dialogs): `useTransition` or local `pending`, then `PendingSubmitContent`.
 - Keep the dialog/sheet open and disable Cancel until the promise settles.
+- Prefer returning `{ ok: false, error }` from server actions over throwing. Thrown `NetworkError`s (and `redirect()` during `revalidatePath` of the layout) become “An unexpected response was received from the server.”
+- Toast failures with `toastFormError`. Do not rethrow from a `<form action>` — Next 16 treats that as a runtime overlay.
 
 ```tsx
-// ❌ BAD
-<Button type="submit">Create SACCO</Button>
+// ❌ BAD — throw from <form action> → overlay + wiped fields
+await createRealmAction(formData)
 
-// ✅ GOOD — inside the form
-<FormSubmitButton pendingLabel="Creating…">Create SACCO</FormSubmitButton>
+// ✅ GOOD
+const result = await createRealmAction(formData)
+if (!result.ok) {
+  toastFormError("Could not create realm", result.error)
+  return
+}
 ```

@@ -6,10 +6,11 @@ import {
   createUserAction,
   updateUserAction,
 } from "@/app/admin/users/actions"
+import { toastFormError } from "@/components/admin/form-action-error"
 import { FormSheet } from "@/components/admin/form-sheet"
 import { ResetPasswordForm } from "@/components/admin/reset-password-form"
 import { withSheetParams } from "@/components/admin/sheet-params"
-import { UserFormFields } from "@/components/admin/user-form"
+import { UserFormFields, userFormFieldsKey } from "@/components/admin/user-form"
 import type { AdminUser } from "@/lib/keycloak/admin"
 
 export function UserFormSheet({
@@ -44,9 +45,7 @@ export function UserFormSheet({
       openEdit(id)
       router.refresh()
     } catch (error) {
-      toast.error("Could not create user", {
-        description: error instanceof Error ? error.message : undefined,
-      })
+      toastFormError("Could not create user", error)
     }
   }
 
@@ -56,9 +55,7 @@ export function UserFormSheet({
       toast.success("User updated")
       router.refresh()
     } catch (error) {
-      toast.error("Could not update user", {
-        description: error instanceof Error ? error.message : undefined,
-      })
+      toastFormError("Could not update user", error)
     }
   }
 
@@ -91,12 +88,22 @@ export function UserFormSheet({
         ) : null
       }
     >
-      <UserFormFields
-        key={isCreate ? "create" : (user?.id ?? "missing")}
-        user={isCreate ? undefined : (user ?? undefined)}
-        saccoId={saccoId}
-        readOnly={!canManage}
-      />
+      {isCreate ? (
+        <UserFormFields
+          key="create"
+          saccoId={saccoId}
+          readOnly={!canManage}
+        />
+      ) : user && user.id === editId ? (
+        <UserFormFields
+          key={userFormFieldsKey(user)}
+          user={user}
+          saccoId={saccoId}
+          readOnly={!canManage}
+        />
+      ) : (
+        <p className="text-muted-foreground text-sm">Loading user…</p>
+      )}
     </FormSheet>
   )
 }

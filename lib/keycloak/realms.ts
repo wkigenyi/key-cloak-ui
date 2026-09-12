@@ -18,6 +18,7 @@ import {
   requireSession,
 } from "@/lib/auth/session"
 import { getAdminClient } from "@/lib/keycloak/admin-client"
+import { toActionError } from "@/lib/keycloak/errors"
 import {
   BUILT_IN_CLIENT_IDS,
   CONSOLE_CLIENT_ID,
@@ -78,8 +79,8 @@ function realmPatchPayload(
   }
 }
 
-async function masterAdminClient(accessToken: string) {
-  return getAdminClient(accessToken, MASTER_REALM)
+async function masterAdminClient() {
+  return getAdminClient(undefined, MASTER_REALM)
 }
 
 function templateRealmSettings(
@@ -142,16 +143,52 @@ function templateRealmSettings(
   }
 }
 
-async function cloneTemplateProfile(accessToken: string, fromRealm: string, toRealm: string) {
-  const source = await getAdminClient(accessToken, fromRealm)
-  const target = await getAdminClient(accessToken, toRealm)
-  const profile = await source.users.getProfile({ realm: fromRealm })
-  await target.users.updateProfile({ ...profile, realm: toRealm })
+async function cloneTemplateProfile(fromRealm: string, toRealm: string) {
+  const source = await getAdminClient(undefined, fromRealm)
+  const target = await getAdminClient(undefined, toRealm)
+  try {
+    const profile = await source.users.getProfile()
+    const { realm: _realm, ...config } = profile as typeof profile & {
+      realm?: string
+    }
+    await target.users.updateProfile(config)
+  } catch (error) {
+    throw toActionError(error, "Could not copy the template user profile")
+  }
 }
 
-async function cloneTemplateClients(accessToken: string, fromRealm: string, toRealm: string) {
-  const source = await getAdminClient(accessToken, fromRealm)
-  const target = await getAdminClient(accessToken, toRealm)
+async function cloneTemplateScopes(fromRealm: string, toRealm: string) {
+  const source = await getAdminClient(undefined, fromRealm)
+  const target = await getAdminClient(undefined, toRealm)
+  const [sourceScopes, targetScopes] = await Promise.all([
+    source.clientScopes.find({ realm: fromRealm }),
+    target.clientScopes.find({ realm: toRealm }),
+  ])
+  const existing = new Set(targetScopes.map((item) => item.name).filter(Boolean))
+
+  for (const scope of sourceScopes) {
+    const name = scope.name ?? ""
+    if (!name || existing.has(name)) continue
+    const mappers = (scope.protocolMappers ?? []).map(
+      ({ id: _id, ...mapper }) => mapper,
+    )
+    try {
+      await target.clientScopes.create({
+        name,
+        description: scope.description,
+        protocol: scope.protocol,
+        attributes: scope.attributes,
+        protocolMappers: mappers.length ? mappers : undefined,
+      })
+    } catch (error) {
+      throw toActionError(error, `Could not copy client scope "${name}"`)
+    }
+  }
+}
+
+async function cloneTemplateClients(fromRealm: string, toRealm: string) {
+  const source = await getAdminClient(undefined, fromRealm)
+  const target = await getAdminClient(undefined, toRealm)
   const clients = await source.clients.find({ max: 200 })
   const existing = new Set(
     (await target.clients.find({ max: 200 })).map((item) => item.clientId),
@@ -175,34 +212,38 @@ async function cloneTemplateClients(accessToken: string, fromRealm: string, toRe
       ({ id: _id, ...mapper }) => mapper,
     )
 
-    await target.clients.create({
-      clientId,
-      name: item.name,
-      description: item.description,
-      enabled: item.enabled,
-      protocol: item.protocol ?? "openid-connect",
-      publicClient: item.publicClient,
-      secret: secret?.value,
-      rootUrl: item.rootUrl,
-      baseUrl: item.baseUrl,
-      redirectUris: item.redirectUris,
-      webOrigins: item.webOrigins,
-      standardFlowEnabled: item.standardFlowEnabled,
-      implicitFlowEnabled: item.implicitFlowEnabled,
-      directAccessGrantsEnabled: item.directAccessGrantsEnabled,
-      serviceAccountsEnabled: item.serviceAccountsEnabled,
-      fullScopeAllowed: item.fullScopeAllowed,
-      attributes: item.attributes,
-      defaultClientScopes: item.defaultClientScopes,
-      optionalClientScopes: item.optionalClientScopes,
-      protocolMappers: mappers.length ? mappers : undefined,
-    })
+    try {
+      await target.clients.create({
+        clientId,
+        name: item.name,
+        description: item.description,
+        enabled: item.enabled,
+        protocol: item.protocol ?? "openid-connect",
+        publicClient: item.publicClient,
+        secret: secret?.value,
+        rootUrl: item.rootUrl,
+        baseUrl: item.baseUrl,
+        redirectUris: item.redirectUris,
+        webOrigins: item.webOrigins,
+        standardFlowEnabled: item.standardFlowEnabled,
+        implicitFlowEnabled: item.implicitFlowEnabled,
+        directAccessGrantsEnabled: item.directAccessGrantsEnabled,
+        serviceAccountsEnabled: item.serviceAccountsEnabled,
+        fullScopeAllowed: item.fullScopeAllowed,
+        attributes: item.attributes,
+        defaultClientScopes: item.defaultClientScopes,
+        optionalClientScopes: item.optionalClientScopes,
+        protocolMappers: mappers.length ? mappers : undefined,
+      })
+    } catch (error) {
+      throw toActionError(error, `Could not copy client "${clientId}"`)
+    }
   }
 }
 
 export async function listRealms() {
   const session = await requireRealmViewer()
-  const client = await masterAdminClient(session.accessToken!)
+  const client = await masterAdminClient()
   const found = await client.realms.find()
   const realms = found
     .filter((item) => item.realm)
@@ -220,7 +261,7 @@ export async function listRealmNames() {
   const session = await requireSession()
   if (!canViewRealms(session.roles)) return []
   try {
-    const client = await masterAdminClient(session.accessToken!)
+    const client = await masterAdminClient()
     const found = await client.realms.find({ briefRepresentation: true })
     return found
       .map((item) => item.realm)
@@ -234,7 +275,7 @@ export async function listRealmNames() {
 export async function getRealm(realm: string) {
   const session = await requireRealmViewer()
   if (!isValidRealmName(realm)) return null
-  const client = await masterAdminClient(session.accessToken!)
+  const client = await masterAdminClient()
   const found = await client.realms.findOne({ realm })
   if (!found?.realm) return null
   return {
@@ -247,7 +288,7 @@ export async function getRealm(realm: string) {
 export async function getRealmSettings(realm: string): Promise<RealmSettings | null> {
   const session = await requireRealmViewer()
   if (!isValidRealmName(realm)) return null
-  const client = await getAdminClient(session.accessToken!, realm)
+  const client = await getAdminClient(undefined, realm)
   const found = await client.realms.findOne({ realm })
   if (!found?.realm) return null
 
@@ -287,27 +328,37 @@ export async function createRealm(input: {
     throw new Error("The master realm already exists.")
   }
 
-  const session = await requireRealmCreator()
-  const client = await masterAdminClient(session.accessToken!)
+  await requireRealmCreator()
+  const client = await masterAdminClient()
   const template = defaultWorkspaceRealm()
   const source = await client.realms.findOne({ realm: template })
   if (!source?.realm) {
     throw new Error(`Template realm "${template}" was not found.`)
   }
 
-  await client.realms.create({
-    realm,
-    displayName: input.displayName?.trim() || realm,
-    enabled: input.enabled ?? true,
-    ...templateRealmSettings(source),
-  })
+  const existing = await client.realms.findOne({ realm })
+  if (existing?.realm) {
+    throw new Error(`A realm named "${realm}" already exists.`)
+  }
 
   try {
-    await cloneTemplateProfile(session.accessToken!, template, realm)
-    await cloneTemplateClients(session.accessToken!, template, realm)
+    await client.realms.create({
+      realm,
+      displayName: input.displayName?.trim() || realm,
+      enabled: input.enabled ?? true,
+      ...templateRealmSettings(source),
+    })
+  } catch (error) {
+    throw toActionError(error, `Could not create realm "${realm}"`)
+  }
+
+  try {
+    await cloneTemplateProfile(template, realm)
+    await cloneTemplateScopes(template, realm)
+    await cloneTemplateClients(template, realm)
   } catch (error) {
     await client.realms.del({ realm }).catch(() => undefined)
-    throw error
+    throw toActionError(error, "Could not copy the app template into the new realm")
   }
 
   return realm
@@ -323,7 +374,7 @@ export async function updateRealm(
   }
 
   const session = await requireRealmManager()
-  const client = await masterAdminClient(session.accessToken!)
+  const client = await masterAdminClient()
   const current = await client.realms.findOne({ realm })
   if (!current?.realm) throw new Error("Realm not found")
 
@@ -347,7 +398,7 @@ export async function deleteRealm(realm: string) {
   }
   await requireRealmManager()
   const session = await requireSession()
-  const client = await masterAdminClient(session.accessToken!)
+  const client = await masterAdminClient()
   await client.realms.del({ realm })
 }
 
@@ -356,7 +407,7 @@ export async function updateRealmEvents(
   config: RealmEventsConfigRepresentation,
 ) {
   const session = await requireRealmManager()
-  const client = await masterAdminClient(session.accessToken!)
+  const client = await masterAdminClient()
   await client.realms.updateConfigEvents({ realm }, config)
 }
 
@@ -365,8 +416,11 @@ export async function updateRealmUserProfile(
   profile: UserProfileConfig,
 ) {
   const session = await requireRealmManager()
-  const client = await getAdminClient(session.accessToken!, realm)
-  await client.users.updateProfile({ ...profile, realm })
+  const client = await getAdminClient(undefined, realm)
+  const { realm: _realm, ...config } = profile as typeof profile & {
+    realm?: string
+  }
+  await client.users.updateProfile(config)
 }
 
 export async function updateRealmClientPolicies(
@@ -377,7 +431,7 @@ export async function updateRealmClientPolicies(
   },
 ) {
   const session = await requireRealmManager()
-  const client = await getAdminClient(session.accessToken!, realm)
+  const client = await getAdminClient(undefined, realm)
   if (input.profiles) {
     await client.clientPolicies.createProfiles({ ...input.profiles, realm })
   }

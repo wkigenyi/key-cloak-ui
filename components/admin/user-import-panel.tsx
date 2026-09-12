@@ -1,13 +1,19 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { CircleAlertIcon, FileSpreadsheetIcon, UploadIcon } from "lucide-react"
-import { importUsersChunkAction } from "@/app/admin/import/actions"
+import { useMemo, useRef, useState } from "react"
+import Link from "next/link"
+import { CircleAlertIcon, FileSpreadsheetIcon, UploadIcon, UsersIcon } from "lucide-react"
 import {
-  parseImportFile,
+  finishImportAction,
+  importOneUserAction,
+} from "@/app/admin/import/actions"
+import {
+  IMPORT_TEMPLATE_CSV,
   summarizeImportRows,
   type ImportFileRow,
+  type ImportRowProgress,
 } from "@/lib/import/user-file"
+import { parseImportUpload } from "@/lib/import/spreadsheet"
 import { formatBytes, useFileUpload } from "@/hooks/use-file-upload"
 import {
   Alert,
@@ -22,6 +28,7 @@ import {
   FramePanel,
   FrameTitle,
 } from "@/components/reui/frame"
+import { ImportReviewGrid } from "@/components/admin/import-review-grid"
 import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,7 +38,26 @@ import {
 } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
-const CHUNK_SIZE = 25
+const ROW_TIMEOUT_MS = 55_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("Import timed out")),
+      ms,
+    )
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
 
 type Props = {
   realm: string
@@ -51,6 +77,12 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
   const [failures, setFailures] = useState<{ username: string; reason?: string }[]>(
     [],
   )
+  const [progressByRow, setProgressByRow] = useState<
+    Record<number, ImportRowProgress>
+  >({})
+  const [activeRowNumber, setActiveRowNumber] = useState<number>()
+  const [lastCompleted, setLastCompleted] = useState("")
+  const cancelledRef = useRef(false)
 
   const [
     { isDragging, errors, files },
@@ -66,7 +98,8 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
   ] = useFileUpload({
     maxFiles: 1,
     maxSize: 5 * 1024 * 1024,
-    accept: ".csv,.json,text/csv,application/json",
+    accept:
+      ".csv,.xlsx,.xls,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel",
     multiple: false,
     onFilesChange: async (next) => {
       const file = next[0]?.file
@@ -74,11 +107,11 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
         setRows([])
         setParseError("")
         resetProgress()
+        setProgressByRow({})
         return
       }
       try {
-        const text = await file.text()
-        const parsed = parseImportFile(text, file.name)
+        const parsed = await parseImportUpload(file)
         setRows(parsed)
         setParseError("")
         resetProgress()
@@ -103,22 +136,111 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
     setSkipped(0)
     setProcessed(0)
     setFailures([])
+    setProgressByRow({})
+    setActiveRowNumber(undefined)
+    setLastCompleted("")
+  }
+
+  function downloadTemplate() {
+    const blob = new Blob([IMPORT_TEMPLATE_CSV], {
+      type: "text/csv;charset=utf-8",
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "users.example.csv"
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function importOneRow(row: ImportFileRow) {
+    const fallback = {
+      username: row.username || `Row ${row.rowNumber}`,
+      status: "skipped" as const,
+      profile: false,
+      password: false,
+      email: false,
+    }
+    try {
+      const result = await withTimeout(importOneUserAction(row), ROW_TIMEOUT_MS)
+      if (!result.ok) {
+        return { ...fallback, reason: result.error }
+      }
+      const { ok: _ok, ...item } = result
+      return item
+    } catch (error) {
+      return {
+        ...fallback,
+        reason: error instanceof Error ? error.message : "Import failed",
+      }
+    }
   }
 
   async function startImport() {
     if (blocked || !canManage || summary.ready === 0) return
+    cancelledRef.current = false
     setRunning(true)
     resetProgress()
-    try {
-      for (let index = 0; index < summary.rows.length; index += CHUNK_SIZE) {
-        const chunk = summary.rows.slice(index, index + CHUNK_SIZE)
-        const result = await importUsersChunkAction(chunk)
-        setCreated((value) => value + result.created)
-        setUpdated((value) => value + result.updated)
-        setSkipped((value) => value + result.skipped)
-        setProcessed((value) => value + chunk.length)
-        setFailures((value) => [...value, ...result.failures])
+    const flaggedProgress: Record<number, ImportRowProgress> = {}
+    const flaggedFailures = summary.flagged.map((item) => {
+      flaggedProgress[item.rowNumber] = {
+        status: "failed",
+        reason: item.reason,
       }
+      return {
+        username: `Row ${item.rowNumber}`,
+        reason: item.label.startsWith("Row ")
+          ? item.reason
+          : `${item.label}: ${item.reason}`,
+      }
+    })
+    setProgressByRow(flaggedProgress)
+    setFailures(flaggedFailures)
+    setSkipped(flaggedFailures.length)
+    try {
+      for (const row of summary.rows) {
+        if (cancelledRef.current) break
+        setActiveRowNumber(row.rowNumber)
+        setProgressByRow((current) => ({
+          ...current,
+          [row.rowNumber]: { status: "importing" },
+        }))
+        const result = await importOneRow(row)
+        const failed = result.status === "skipped"
+        setProgressByRow((current) => ({
+          ...current,
+          [row.rowNumber]: {
+            status: failed ? "failed" : "done",
+            profile: result.profile,
+            password: result.password,
+            email: result.email,
+            reason: result.reason,
+          },
+        }))
+        if (failed) {
+          setSkipped((value) => value + 1)
+          setFailures((value) => [
+            ...value,
+            { username: result.username, reason: result.reason },
+          ])
+        } else if (result.status === "created") {
+          setCreated((value) => value + 1)
+        } else {
+          setUpdated((value) => value + 1)
+        }
+        setProcessed((value) => value + 1)
+        const steps = [
+          result.profile ? "profile" : null,
+          result.password ? "password" : null,
+          result.email ? "email" : null,
+        ].filter(Boolean)
+        setLastCompleted(
+          failed
+            ? `${result.username} failed`
+            : `${result.username} · ${steps.join(" · ")}`,
+        )
+      }
+      setActiveRowNumber(undefined)
       setDone(true)
     } catch (error) {
       setParseError(
@@ -126,20 +248,31 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
       )
     } finally {
       setRunning(false)
+      try {
+        await finishImportAction()
+      } catch {
+        // Users list will refresh on the next visit.
+      }
     }
   }
 
   return (
-    <Frame spacing="default" className="w-full">
-      <FrameHeader>
-        <FrameTitle>Import self-help users</FrameTitle>
-        <FrameDescription>
-          Import into workspace <span className="font-medium text-foreground">{realm}</span>.
-          CSV or JSON. Required columns: username (or phone), clientId. Password is
-          optional — missing passwords get UPDATE_PASSWORD.
-        </FrameDescription>
+    <Frame spacing="default" className="w-full min-w-0 overflow-hidden">
+      <FrameHeader className="flex-row items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <FrameTitle>Import self-help users</FrameTitle>
+          <FrameDescription>
+            Import into workspace <span className="font-medium text-foreground">{realm}</span>.
+            CSV, Excel (.xlsx), or JSON. Columns: phone, email, clientId, externalId, firstName,
+            lastName.
+          </FrameDescription>
+        </div>
+        <Button variant="outline" nativeButton={false} render={<Link href="/admin/users" />}>
+          <UsersIcon aria-hidden="true" />
+          Self Help Users
+        </Button>
       </FrameHeader>
-      <FramePanel className="space-y-4">
+      <FramePanel className="min-w-0 space-y-4">
         {blocked ? (
           <Alert variant="destructive">
             <CircleAlertIcon />
@@ -178,18 +311,53 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
               <UploadIcon className="text-muted-foreground size-5" />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium">Drop a CSV or JSON file</p>
+              <p className="text-sm font-medium">Drop a CSV, Excel, or JSON file</p>
               <p className="text-muted-foreground text-xs">
-                username,clientId,password,email,firstName,lastName — up to{" "}
+                phone,email,clientId,externalId,firstName,lastName — up to{" "}
                 {formatBytes(5 * 1024 * 1024)}
               </p>
             </div>
-            <Button type="button" onClick={openFileDialog} disabled={running}>
-              <UploadIcon className="size-4" />
-              Choose file
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button type="button" onClick={openFileDialog} disabled={running}>
+                <UploadIcon className="size-4" />
+                Choose file
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={running}
+                onClick={downloadTemplate}
+              >
+                Download template
+              </Button>
+            </div>
           </div>
         </div>
+
+        {running || done ? (
+          <Progress value={progress}>
+            <ProgressLabel>
+              {done
+                ? "Import finished"
+                : `Importing ${processed} / ${summary.ready}${lastCompleted ? ` · ${lastCompleted}` : ""}`}
+            </ProgressLabel>
+            <ProgressValue />
+          </Progress>
+        ) : null}
+
+        {done || processed > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            <Badge size="sm" variant="success-light">
+              Created: {created}
+            </Badge>
+            <Badge size="sm" variant="secondary">
+              Updated: {updated}
+            </Badge>
+            <Badge size="sm" variant="destructive">
+              Skipped: {skipped}
+            </Badge>
+          </div>
+        ) : null}
 
         {files[0] ? (
           <div className="border-border bg-card flex items-center gap-3 rounded-lg border p-3">
@@ -226,51 +394,61 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
         ) : null}
 
         {summary.total > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            <Badge size="sm" variant="secondary">
-              Ready: {summary.ready}
-            </Badge>
-            <Badge size="sm" variant="success-light">
-              With password: {summary.withPassword}
-            </Badge>
-            <Badge size="sm" variant="warning-light">
-              Reset on login: {summary.withoutPassword}
-            </Badge>
-            {summary.skipped > 0 ? (
-              <Badge size="sm" variant="destructive">
-                Missing clientId/username: {summary.skipped}
-              </Badge>
-            ) : null}
-          </div>
-        ) : null}
-
-        {running || done ? (
-          <Progress value={progress}>
-            <ProgressLabel>
-              {done ? "Import finished" : "Importing"}
-            </ProgressLabel>
-            <ProgressValue />
-          </Progress>
-        ) : null}
-
-        {done || processed > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            <Badge size="sm" variant="success-light">
-              Created: {created}
-            </Badge>
-            <Badge size="sm" variant="secondary">
-              Updated: {updated}
-            </Badge>
-            <Badge size="sm" variant="destructive">
-              Skipped: {skipped}
-            </Badge>
-          </div>
+          <ImportReviewGrid
+            rows={rows}
+            ready={summary.ready}
+            flagged={summary.flagged.length}
+            progressByRow={progressByRow}
+            activeRowNumber={activeRowNumber}
+            actions={
+              <>
+                <Button
+                  type="button"
+                  disabled={blocked || !canManage || running || summary.ready === 0}
+                  aria-busy={running}
+                  onClick={startImport}
+                >
+                  <PendingSubmitContent pending={running} pendingLabel="Importing…">
+                    {`Proceed with ${summary.ready} ready ${summary.ready === 1 ? "user" : "users"}`}
+                  </PendingSubmitContent>
+                </Button>
+                {running ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      cancelledRef.current = true
+                    }}
+                  >
+                    Stop after this user
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      clearFiles()
+                      setRows([])
+                      setParseError("")
+                      resetProgress()
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </>
+            }
+          />
         ) : null}
 
         {failures.length > 0 ? (
-          <Alert variant="destructive">
+          <Alert variant={created + updated > 0 ? "warning" : "destructive"}>
             <CircleAlertIcon />
-            <AlertTitle>Some rows were skipped</AlertTitle>
+            <AlertTitle>
+              {created + updated > 0
+                ? "Some rows were flagged"
+                : "No rows could be imported"}
+            </AlertTitle>
             <AlertDescription>
               {failures.slice(0, 8).map((item) => (
                 <p key={`${item.username}-${item.reason}`}>
@@ -296,22 +474,6 @@ export function UserImportPanel({ realm, canManage, blocked }: Props) {
             </AlertDescription>
           </Alert>
         ) : null}
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            disabled={blocked || !canManage || running || summary.ready === 0}
-            aria-busy={running}
-            onClick={startImport}
-          >
-            <PendingSubmitContent pending={running} pendingLabel="Importing…">
-              Import {summary.ready || ""} {summary.ready === 1 ? "user" : "users"}
-            </PendingSubmitContent>
-          </Button>
-          <p className="text-muted-foreground text-xs">
-            The file stays in this browser. Passwords are not stored on the realm.
-          </p>
-        </div>
       </FramePanel>
     </Frame>
   )

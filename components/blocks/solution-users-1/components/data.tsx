@@ -46,6 +46,7 @@ export interface IMember {
   clientId?: string
   saccoId?: string
   phone?: string
+  username?: string
   kind?: "self-help" | "operator"
 }
 

@@ -68,9 +68,6 @@ export default async function LoginPage({
               Sign in with Keycloak
             </FormSubmitButton>
           </form>
-          <p className="text-muted-foreground text-xs">
-            Local demo: console-admin / admin
-          </p>
         </FramePanel>
       </Frame>
     </main>

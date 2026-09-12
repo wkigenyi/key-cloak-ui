@@ -36,6 +36,7 @@ export function UsersDirectory({
         canManage={canManage}
         realm={realm}
         onCreate={() => setSheet({ create: true })}
+        onView={(member) => router.push(`/admin/users/${member.id}`)}
         onEdit={(member) => setSheet({ edit: member.id })}
       />
       <UserFormSheet user={user} canManage={canManage} saccoId={realm} />

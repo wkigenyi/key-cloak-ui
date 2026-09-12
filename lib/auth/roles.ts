@@ -10,6 +10,15 @@ export const CLIENT_ADMIN_ROLES = [
   "query-clients",
 ] as const
 
+const STORED_ROLES = new Set<string>([
+  "admin",
+  ...USER_ADMIN_ROLES,
+  ...CLIENT_ADMIN_ROLES,
+  "view-realm",
+  "create-realm",
+  "manage-realm",
+])
+
 export function extractRoles(accessToken: string): string[] {
   const payload = decodeJwtPayload(accessToken)
   if (!payload) return []
@@ -18,7 +27,9 @@ export function extractRoles(accessToken: string): string[] {
   const realmManagement =
     payload.resource_access?.["realm-management"]?.roles ?? []
 
-  return [...new Set([...realmRoles, ...realmManagement])]
+  return [...new Set([...realmRoles, ...realmManagement])].filter((role) =>
+    STORED_ROLES.has(role),
+  )
 }
 
 export function isRealmAdmin(roles: string[]): boolean {

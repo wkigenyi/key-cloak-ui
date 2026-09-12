@@ -1,7 +1,9 @@
 "use client"
 
-import { signOutAction } from "@/app/login/actions"
+import { useTransition } from "react"
+import { signOut } from "next-auth/react"
 import { cn } from "@/lib/utils"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -18,6 +20,26 @@ import {
 } from "@/components/ui/sidebar"
 import { ThemeModeTabs } from "@/components/admin/theme-mode-tabs"
 import { ChevronsUpDownIcon } from "lucide-react"
+
+function SignOutMenuItem() {
+  const [pending, startTransition] = useTransition()
+
+  return (
+    <DropdownMenuItem
+      disabled={pending}
+      aria-busy={pending}
+      onClick={() => {
+        startTransition(async () => {
+          await signOut({ redirectTo: "/login" })
+        })
+      }}
+    >
+      <PendingSubmitContent pending={pending} pendingLabel="Signing out…">
+        Sign out
+      </PendingSubmitContent>
+    </DropdownMenuItem>
+  )
+}
 
 export function NavWorkspace({
   realm,
@@ -69,13 +91,7 @@ export function NavWorkspace({
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled>Realm: {realm}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  void signOutAction()
-                }}
-              >
-                Sign out
-              </DropdownMenuItem>
+              <SignOutMenuItem />
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>

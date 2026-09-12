@@ -49,7 +49,7 @@ export function AppShell({
       />
       <SidebarInset>
         <AppHeader realm={realm} />
-        <div className="flex flex-1 flex-col gap-4 py-2 pr-4 pl-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 py-2 pr-4 pl-2">
           {children}
         </div>
       </SidebarInset>

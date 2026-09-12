@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Badge } from "@/components/reui/badge"
+import { useTransition } from "react"
+import { useRouter } from "next/navigation"
 import {
   Frame,
   FrameDescription,
@@ -11,168 +11,106 @@ import {
   FrameTitle,
 } from "@/components/reui/frame"
 import { toast } from "sonner"
-
+import { updateUserAction } from "@/app/admin/users/actions"
+import { toastFormError } from "@/components/admin/form-action-error"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
+import { UserFormFields, userFormFieldsKey } from "@/components/admin/user-form"
 import { Button } from "@/components/ui/button"
-import { FieldGroup } from "@/components/ui/field"
-
-import {
-  ROLE_CHIPS,
-  ROLE_OPTIONS,
-  SCOPE_CHIPS,
-  TEAM_CHIPS,
-  TEAM_OPTIONS,
-  TOAST_SUCCESS_ICON,
-} from "./data"
-import { MemberCompactSelectField } from "./member-form-fields"
+import type { AdminUser } from "@/lib/keycloak/admin"
 import { MemberSummaryFrame } from "./member-summary-frames"
-import { SettingRow } from "./setting-row"
 
-const SCOPE_SIGNALS = [
-  {
-    id: "scope-read",
-    label: "Effective access",
-    value: "Read across Members and Audit log",
-    detail: "Inherited from the Member role and the Product team.",
-    badge: { label: "Read", variant: "info-light" as const },
-  },
-  {
-    id: "scope-write",
-    label: "Elevated scope",
-    value: "Write on Settings",
-    detail: "Granted by the custom Support Agent role. Expires in 7 days.",
-    badge: { label: "Write", variant: "warning-light" as const },
-  },
-]
+export function AccessTabContent({
+  user,
+  saccoId,
+  canManage,
+}: {
+  user: AdminUser
+  saccoId: string
+  canManage: boolean
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
 
-function DotSeparator() {
-  return (
-    <span
-      className="bg-muted-foreground/40 size-1 shrink-0 rounded-full"
-      aria-hidden="true"
-    />
-  )
-}
-
-export function AccessTabContent() {
-  const [dirty, setDirty] = useState(false)
-
-  const handleSave = () => {
-    setDirty(false)
-    toast.success("Access updated", {
-      description: "Nora Vale keeps Member plus the Support Agent role.",
-      icon: TOAST_SUCCESS_ICON,
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    startTransition(async () => {
+      try {
+        await updateUserAction(formData)
+        toast.success("Profile saved")
+        router.refresh()
+      } catch (error) {
+        toastFormError("Could not save profile", error)
+      }
     })
   }
 
   return (
     <div className="space-y-4">
-      <Frame spacing="sm" className="text-foreground">
-        <FrameHeader>
-          <FrameTitle className="capitalize">Roles &amp; Teams</FrameTitle>
-          <FrameDescription className="dark:text-foreground/70 flex items-center gap-1.5">
-            <span>2 roles</span>
-            <DotSeparator />
-            <span>2 teams assigned</span>
-          </FrameDescription>
-        </FrameHeader>
-
-        <FramePanel className="p-0">
-          <FieldGroup className="gap-0">
-            <SettingRow
-              title="Roles"
-              description="Member plus a custom role."
-              labelFor="access-role"
-              titleAddon={
-                dirty ? <Badge variant="warning-light">Unsaved</Badge> : null
-              }
-            >
-              <MemberCompactSelectField
-                id="access-role"
-                options={ROLE_OPTIONS}
-                defaultValue={ROLE_OPTIONS[0]}
-              />
-            </SettingRow>
-
-            <SettingRow
-              title="Assigned roles"
-              description="Applied on every sign-in."
-              stacked
-            >
-              <div className="flex flex-wrap gap-1.5">
-                {ROLE_CHIPS.map((chip) => (
-                  <Badge key={chip.label} variant={chip.variant}>
-                    {chip.label}
-                  </Badge>
-                ))}
-              </div>
-            </SettingRow>
-
-            <SettingRow
-              title="Team"
-              description="Add Nora to a team."
-              labelFor="access-team"
-            >
-              <MemberCompactSelectField
-                id="access-team"
-                options={TEAM_OPTIONS}
-                defaultValue={TEAM_OPTIONS[0]}
-              />
-            </SettingRow>
-
-            <SettingRow
-              title="Teams"
-              description="Drives default access scopes."
-              stacked
-            >
-              <div className="flex flex-wrap gap-1.5">
-                {TEAM_CHIPS.map((chip) => (
-                  <Badge key={chip.label} variant={chip.variant}>
-                    {chip.label}
-                  </Badge>
-                ))}
-              </div>
-            </SettingRow>
-
-            <SettingRow
-              title="Permission scopes"
-              description="Resolved from roles and teams."
-              stacked
-              last
-            >
-              <div className="flex flex-wrap gap-1.5">
-                {SCOPE_CHIPS.map((chip) => (
-                  <Badge key={chip.label} variant={chip.variant}>
-                    {chip.label}
-                  </Badge>
-                ))}
-              </div>
-            </SettingRow>
-          </FieldGroup>
-        </FramePanel>
-
-        <FrameFooter className="flex-row items-center justify-end gap-2">
-          {dirty ? (
-            <span className="text-muted-foreground me-auto text-sm">
-              1 unsaved change
-            </span>
+      <form onSubmit={handleSubmit}>
+        <Frame spacing="sm" className="text-foreground">
+          <FrameHeader>
+            <FrameTitle className="capitalize">Profile</FrameTitle>
+            <FrameDescription className="dark:text-foreground/70">
+              {user.kind === "self-help"
+                ? "Self Help login linked to a Fineract client."
+                : "Keycloak operator account."}
+            </FrameDescription>
+          </FrameHeader>
+          <FramePanel className="space-y-4">
+            <UserFormFields
+              key={userFormFieldsKey(user)}
+              user={user}
+              saccoId={saccoId}
+              readOnly={!canManage}
+            />
+          </FramePanel>
+          {canManage ? (
+            <FrameFooter className="flex-row justify-end gap-2">
+              <Button type="submit" disabled={pending} aria-busy={pending}>
+                <PendingSubmitContent pending={pending} pendingLabel="Saving…">
+                  Save profile
+                </PendingSubmitContent>
+              </Button>
+            </FrameFooter>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setDirty(true)}
-          >
-            Add role
-          </Button>
-          <Button type="button" disabled={!dirty} onClick={handleSave}>
-            Save access
-          </Button>
-        </FrameFooter>
-      </Frame>
+        </Frame>
+      </form>
 
       <MemberSummaryFrame
-        title="Effective access"
-        description="What this member can reach today."
-        items={SCOPE_SIGNALS}
+        title="Identity"
+        description="How this account is recognized in Keycloak."
+        items={[
+          {
+            id: "username",
+            label: "Username",
+            value: user.username || "—",
+            detail: user.kind === "self-help" ? "Phone, or email if there is no phone." : undefined,
+          },
+          {
+            id: "client",
+            label: "Fineract client ID",
+            value: user.clientId || "—",
+            badge: user.clientId
+              ? { label: "Linked", variant: "success-light" }
+              : { label: "Missing", variant: "warning-light" },
+          },
+          {
+            id: "sacco",
+            label: "SACCO",
+            value: user.saccoId || saccoId,
+          },
+          {
+            id: "email",
+            label: "Email",
+            value: user.email || "—",
+            badge: user.emailVerified
+              ? { label: "Verified", variant: "success-light" }
+              : user.email
+                ? { label: "Unverified", variant: "warning-light" }
+                : undefined,
+          },
+        ]}
       />
     </div>
   )

@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { createRealmAction } from "@/app/admin/realms/actions"
+import { toastFormError } from "@/components/admin/form-action-error"
 import { FormSheet } from "@/components/admin/form-sheet"
 import { RealmFormFields } from "@/components/admin/realm-form"
 import { withSheetParams } from "@/components/admin/sheet-params"
@@ -18,16 +19,14 @@ export function RealmFormSheet({ canCreate }: { canCreate: boolean }) {
   }
 
   async function onCreate(formData: FormData) {
-    try {
-      await createRealmAction(formData)
-      toast.success("SACCO realm created")
-      router.push("/admin/users")
-      router.refresh()
-    } catch (error) {
-      toast.error("Could not create realm", {
-        description: error instanceof Error ? error.message : undefined,
-      })
+    const result = await createRealmAction(formData)
+    if (!result.ok) {
+      toastFormError("Could not create realm", result.error)
+      return
     }
+    toast.success("SACCO realm created")
+    router.push("/admin/users")
+    router.refresh()
   }
 
   return (

@@ -1,3 +1,4 @@
+import Link from "next/link"
 import {
   SidebarGroup,
   SidebarMenu,
@@ -15,7 +16,9 @@ function SecondaryNavItem({ item }: { item: SecondaryItem }) {
         size="sm"
         tooltip={item.label}
         disabled={item.disabled}
-        render={item.disabled ? undefined : <a href={item.href ?? "#"} />}
+        render={
+          item.disabled ? undefined : <Link href={item.href ?? "#"} />
+        }
         className="h-8! in-data-[state=collapsed]:h-8! [&_svg]:size-3.5"
       >
         {item.icon}

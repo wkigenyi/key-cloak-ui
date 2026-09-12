@@ -90,7 +90,7 @@ function toAdminClient(client: ClientRepresentation): AdminClient {
 
 export async function listClients(params: ListClientsParams = {}) {
   const session = await requireClientViewer()
-  const client = await getAdminClient(session.accessToken!)
+  const client = await getAdminClient()
   const found = await client.clients.find({
     first: 0,
     max: 200,
@@ -122,7 +122,7 @@ export async function listClients(params: ListClientsParams = {}) {
 
 export async function getClient(id: string) {
   const session = await requireClientViewer()
-  const client = await getAdminClient(session.accessToken!)
+  const client = await getAdminClient()
   const found = await client.clients.findOne({ id })
   if (!found?.id) return null
   return {
@@ -158,7 +158,7 @@ export async function createClient(input: {
   }
 
   const session = await requireClientManager()
-  const client = await getAdminClient(session.accessToken!)
+  const client = await getAdminClient()
   const publicClient = input.publicClient ?? false
   const { id } = await client.clients.create({
     clientId,
@@ -202,7 +202,7 @@ export async function updateClient(
 ) {
   await requireClientManager()
   const session = await requireSession()
-  const client = await getAdminClient(session.accessToken!)
+  const client = await getAdminClient()
   const current = await client.clients.findOne({ id })
   if (!current?.id) throw new Error("Client not found")
 

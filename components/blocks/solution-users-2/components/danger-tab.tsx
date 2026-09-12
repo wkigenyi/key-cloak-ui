@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import {
   Frame,
   FrameDescription,
@@ -9,7 +10,12 @@ import {
   FrameTitle,
 } from "@/components/reui/frame"
 import { toast } from "sonner"
-
+import {
+  deleteUserAction,
+  setUserEnabledAction,
+} from "@/app/admin/users/actions"
+import { toastFormError } from "@/components/admin/form-action-error"
+import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,32 +28,43 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { FieldGroup } from "@/components/ui/field"
-
-import { TOAST_INFO_ICON, TOAST_SUCCESS_ICON } from "./data"
+import type { AdminUser } from "@/lib/keycloak/admin"
 import { SettingRow } from "./setting-row"
 
-export function DangerTabContent() {
+export function DangerTabContent({
+  user,
+  canManage,
+}: {
+  user: AdminUser
+  canManage: boolean
+}) {
+  const router = useRouter()
   const [removeOpen, setRemoveOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
+  const operator = user.kind === "operator"
 
-  const handleSuspend = () => {
-    toast("Member suspended", {
-      description: "Nora Vale cannot sign in until an admin restores access.",
-      icon: TOAST_INFO_ICON,
+  function toggleEnabled() {
+    startTransition(async () => {
+      try {
+        await setUserEnabledAction(user.id, !user.enabled)
+        toast.success(user.enabled ? "User disabled" : "User enabled")
+        router.refresh()
+      } catch (error) {
+        toastFormError("Could not update user", error)
+      }
     })
   }
 
-  const handleDeactivate = () => {
-    toast("Member deactivated", {
-      description: "Seat freed. Access removed while history is kept.",
-      icon: TOAST_INFO_ICON,
-    })
-  }
-
-  const handleRemove = () => {
-    setRemoveOpen(false)
-    toast.success("Member removed", {
-      description: "Nora Vale lost workspace access. usr_a1b2c3d4 is archived.",
-      icon: TOAST_SUCCESS_ICON,
+  function removeUser() {
+    startTransition(async () => {
+      const result = await deleteUserAction(user.id)
+      if (!result.ok) {
+        toastFormError("Could not delete user", result.error)
+        return
+      }
+      toast.success("User deleted")
+      setRemoveOpen(false)
+      router.push("/admin/users")
     })
   }
 
@@ -58,61 +75,83 @@ export function DangerTabContent() {
           Danger Zone
         </FrameTitle>
         <FrameDescription className="dark:text-foreground/70">
-          Actions that limit or end access.
+          Disable sign-in or permanently delete this account.
         </FrameDescription>
       </FrameHeader>
-
       <FramePanel className="p-0">
         <FieldGroup className="gap-0">
           <SettingRow
-            title="Suspend member"
-            description="Block sign-in but keep the seat and history."
-          >
-            <Button type="button" variant="outline" onClick={handleSuspend}>
-              Suspend
-            </Button>
-          </SettingRow>
-
-          <SettingRow
-            title="Deactivate member"
-            description="Free the seat and revoke access. History is kept."
-          >
-            <Button type="button" variant="outline" onClick={handleDeactivate}>
-              Deactivate
-            </Button>
-          </SettingRow>
-
-          <SettingRow
-            title="Remove member"
-            description="Delete the member and detach all roles. Cannot be undone."
-            last
+            title={user.enabled ? "Disable user" : "Enable user"}
+            description={
+              user.enabled
+                ? "Block sign-in. Profile and history stay in this realm."
+                : "Restore sign-in for this account."
+            }
+            last={operator || !canManage}
           >
             <Button
               type="button"
-              variant="destructive"
-              onClick={() => setRemoveOpen(true)}
+              variant="outline"
+              disabled={!canManage || pending}
+              aria-busy={pending}
+              onClick={toggleEnabled}
             >
-              Remove
+              <PendingSubmitContent
+                pending={pending}
+                pendingLabel={user.enabled ? "Disabling…" : "Enabling…"}
+              >
+                {user.enabled ? "Disable" : "Enable"}
+              </PendingSubmitContent>
             </Button>
           </SettingRow>
+          {canManage && !operator ? (
+            <SettingRow
+              title="Delete user"
+              description="Removes the Keycloak account. This cannot be undone."
+              last
+            >
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={pending}
+                onClick={() => setRemoveOpen(true)}
+              >
+                Delete
+              </Button>
+            </SettingRow>
+          ) : null}
         </FieldGroup>
       </FramePanel>
 
-      <AlertDialog open={removeOpen} onOpenChange={setRemoveOpen}>
+      <AlertDialog
+        open={removeOpen}
+        onOpenChange={(open) => {
+          if (!pending) setRemoveOpen(open)
+        }}
+      >
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove this member?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this user?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes{" "}
-              <span className="text-foreground font-medium">Nora Vale</span>{" "}
-              from Acme Cloud and detaches 2 roles and 2 teams. Connect your API
-              to persist changes.
+              This permanently deletes{" "}
+              <span className="text-foreground font-medium">
+                {user.displayName || user.username}
+              </span>{" "}
+              from this realm.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={handleRemove}>
-              Remove Member
+            <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              variant="destructive"
+              disabled={pending}
+              aria-busy={pending}
+              onClick={removeUser}
+            >
+              <PendingSubmitContent pending={pending} pendingLabel="Deleting…">
+                Delete user
+              </PendingSubmitContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

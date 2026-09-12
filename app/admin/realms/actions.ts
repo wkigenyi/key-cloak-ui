@@ -10,6 +10,7 @@ import {
   updateRealmEvents,
   updateRealmUserProfile,
 } from "@/lib/keycloak/realms"
+import { asActionResult, withActionError } from "@/lib/keycloak/errors"
 import { setWorkspaceRealmCookie } from "@/lib/keycloak/workspace"
 import type RealmRepresentation from "@keycloak/keycloak-admin-client/lib/defs/realmRepresentation"
 import type { RealmEventsConfigRepresentation } from "@keycloak/keycloak-admin-client/lib/defs/realmEventsConfigRepresentation"
@@ -33,53 +34,64 @@ function formNumber(formData: FormData, key: string) {
 }
 
 export async function createRealmAction(formData: FormData) {
-  const realm = await createRealm({
-    realm: formString(formData, "realm"),
-    displayName: formString(formData, "displayName") || undefined,
-    enabled: formChecked(formData, "enabled"),
-  })
-  await setWorkspaceRealmCookie(realm)
-  revalidatePath("/admin/realms")
-  revalidatePath("/admin/users")
-  revalidatePath("/admin", "layout")
-  return { realm }
+  return asActionResult(async () => {
+    const realm = await createRealm({
+      realm: formString(formData, "realm"),
+      displayName: formString(formData, "displayName") || undefined,
+      enabled: formChecked(formData, "enabled"),
+    })
+    await setWorkspaceRealmCookie(realm)
+    revalidatePath("/admin/realms")
+    revalidatePath("/admin/users")
+    return { realm }
+  }, "Could not create realm")
 }
 
 export async function setRealmEnabledAction(realm: string, enabled: boolean) {
-  await setRealmEnabled(realm, enabled)
-  revalidatePath("/admin/realms")
-  revalidatePath("/admin", "layout")
+  return withActionError(async () => {
+    await setRealmEnabled(realm, enabled)
+    revalidatePath("/admin/realms")
+    revalidatePath("/admin", "layout")
+  }, "Could not update realm")
 }
 
 export async function deleteRealmAction(realm: string) {
-  await deleteRealm(realm)
-  revalidatePath("/admin/realms")
-  revalidatePath("/admin", "layout")
+  return withActionError(async () => {
+    await deleteRealm(realm)
+    revalidatePath("/admin/realms")
+    revalidatePath("/admin", "layout")
+  }, "Could not delete realm")
 }
 
 export async function updateRealmSettingsAction(
   realm: string,
   patch: Partial<RealmRepresentation>,
 ) {
-  await updateRealm(realm, patch)
-  revalidatePath("/admin/realms")
-  revalidatePath(`/admin/realms/${realm}`)
+  return withActionError(async () => {
+    await updateRealm(realm, patch)
+    revalidatePath("/admin/realms")
+    revalidatePath(`/admin/realms/${realm}`)
+  }, "Could not save realm settings")
 }
 
 export async function updateRealmEventsAction(
   realm: string,
   config: RealmEventsConfigRepresentation,
 ) {
-  await updateRealmEvents(realm, config)
-  revalidatePath(`/admin/realms/${realm}`)
+  return withActionError(async () => {
+    await updateRealmEvents(realm, config)
+    revalidatePath(`/admin/realms/${realm}`)
+  }, "Could not save events")
 }
 
 export async function updateRealmUserProfileAction(
   realm: string,
   profile: UserProfileConfig,
 ) {
-  await updateRealmUserProfile(realm, profile)
-  revalidatePath(`/admin/realms/${realm}`)
+  return withActionError(async () => {
+    await updateRealmUserProfile(realm, profile)
+    revalidatePath(`/admin/realms/${realm}`)
+  }, "Could not save user profile")
 }
 
 export async function updateRealmClientPoliciesAction(
@@ -89,6 +101,8 @@ export async function updateRealmClientPoliciesAction(
     profiles?: ClientProfilesRepresentation
   },
 ) {
-  await updateRealmClientPolicies(realm, input)
-  revalidatePath(`/admin/realms/${realm}`)
+  return withActionError(async () => {
+    await updateRealmClientPolicies(realm, input)
+    revalidatePath(`/admin/realms/${realm}`)
+  }, "Could not save client policies")
 }

@@ -18,7 +18,7 @@ export async function getSession() {
 
 export async function requireSession() {
   const session = await auth()
-  if (!session?.user || !session.accessToken || session.error) {
+  if (!session?.user || session.error) {
     redirect("/login")
   }
   return session
