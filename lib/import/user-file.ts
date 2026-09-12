@@ -60,7 +60,15 @@ export const IMPORT_TEMPLATE_CSV = `phone,email,clientId,externalId,firstName,la
 ,bob@example.com,1002,EXT-1002,Bob,Okoye
 `
 
-const ALIASES: Record<string, keyof ImportFileRow> = {
+type ImportColumn =
+  | "phone"
+  | "email"
+  | "clientId"
+  | "externalId"
+  | "firstName"
+  | "lastName"
+
+const ALIASES: Record<string, ImportColumn> = {
   phone: "phone",
   email: "email",
   clientid: "clientId",
@@ -116,7 +124,7 @@ function fromRecord(
   record: Record<string, unknown>,
   rowNumber: number,
 ): ImportFileRow {
-  const mapped: Partial<ImportFileRow> = {}
+  const mapped: Partial<Record<ImportColumn, string>> = {}
   for (const [rawKey, rawValue] of Object.entries(record)) {
     const field = ALIASES[headerKey(rawKey)]
     if (!field) continue

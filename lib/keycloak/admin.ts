@@ -478,7 +478,10 @@ async function findImportedUser(
   client: KcAdminClient,
   username: string,
   clientId: string,
-) {
+): Promise<
+  | { user: UserRepresentation; conflict: true }
+  | { user: UserRepresentation | undefined; conflict: false }
+> {
   const [byClientId, byUsername] = await Promise.all([
     findUserByClientId(client, clientId),
     findUserByUsername(client, username),
