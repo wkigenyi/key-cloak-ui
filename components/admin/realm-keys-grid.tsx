@@ -204,19 +204,19 @@ export function RealmKeysGrid({
       }
       tableLayout={{
         columnsPinnable: false,
-        columnsResizable: false,
+        columnsResizable: true,
         columnsMovable: false,
         columnsVisibility: false,
         headerSticky: false,
         dense: true,
       }}
     >
-      <Frame variant="default" spacing="sm" className="w-full">
+      <Frame variant="default" spacing="sm" className="w-full min-w-0 overflow-hidden">
         <FrameHeader>
           <FrameTitle className="capitalize">Realm keys</FrameTitle>
           <FrameDescription>Signing and encryption keys for this realm.</FrameDescription>
         </FrameHeader>
-        <FramePanel className="bg-card p-0! shadow-none!">
+        <FramePanel className="bg-card min-w-0 overflow-hidden p-0! shadow-none!">
           <div className="px-4 py-3">
             <InputGroup className="w-full sm:w-60">
               <InputGroupAddon align="inline-start">

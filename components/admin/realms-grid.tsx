@@ -286,7 +286,7 @@ export function RealmsGrid({
           dense: true,
         }}
       >
-        <Frame spacing="sm" className="w-full">
+        <Frame spacing="sm" className="w-full min-w-0 overflow-hidden">
           <FrameHeader className="flex-row items-center justify-between gap-3">
             <div className="flex flex-col gap-0.5">
               <FrameTitle id="page-heading" className="text-balance">
@@ -303,7 +303,7 @@ export function RealmsGrid({
               </Button>
             ) : null}
           </FrameHeader>
-          <FramePanel className="p-0 shadow-none">
+          <FramePanel className="min-w-0 overflow-hidden p-0 shadow-none">
             <DataGridScrollArea>
               <DataGridTable />
             </DataGridScrollArea>

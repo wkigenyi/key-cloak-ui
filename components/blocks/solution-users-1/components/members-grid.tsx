@@ -535,7 +535,7 @@ export function MembersGrid({
           dense: true,
         }}
       >
-        <Frame spacing="sm" className="w-full">
+        <Frame spacing="sm" className="w-full min-w-0 overflow-hidden">
           <FrameHeader className="flex-row items-center justify-between gap-3">
             <div className="flex flex-col gap-0.5">
               <FrameTitle id="page-heading" className="text-balance">
@@ -571,7 +571,7 @@ export function MembersGrid({
               </div>
             ) : null}
           </FrameHeader>
-          <FramePanel className="p-0 shadow-none">
+          <FramePanel className="min-w-0 overflow-hidden p-0 shadow-none">
             <div className="flex flex-wrap items-center justify-between gap-2 px-(--frame-panel-header-px) py-2.5">
               <Filters
                 query={filterQuery}

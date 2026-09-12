@@ -32,6 +32,7 @@ import {
   SortingState,
   useTable,
   type ColumnDef,
+  type ColumnPinningState,
   type ColumnVisibilityState,
 } from "@tanstack/react-table"
 
@@ -164,6 +165,10 @@ export function ImportReviewGrid({
       firstName: false,
       lastName: false,
     })
+  const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({
+    start: [],
+    end: ["name"],
+  })
 
   useEffect(() => {
     setPagination((current) => ({ ...current, pageIndex: 0 }))
@@ -293,7 +298,7 @@ export function ImportReviewGrid({
         ),
         cell: ({ row }) => <EmptyCell value={row.original.clientId} />,
         enableSorting: true,
-        size: 88,
+        size: 90,
         minSize: 72,
         maxSize: 140,
         meta: { headerTitle: "Client ID" },
@@ -310,7 +315,7 @@ export function ImportReviewGrid({
         ),
         cell: ({ row }) => <EmptyCell value={row.original.externalId} />,
         enableSorting: true,
-        size: 88,
+        size: 90,
         minSize: 72,
         maxSize: 140,
         meta: { headerTitle: "External ID" },
@@ -327,6 +332,7 @@ export function ImportReviewGrid({
           />
         ),
         enableSorting: true,
+        enablePinning: true,
         minSize: 160,
         meta: { headerTitle: "Name" },
       },
@@ -370,10 +376,11 @@ export function ImportReviewGrid({
     data: review,
     pageCount: Math.max(1, Math.ceil(review.length / pagination.pageSize)),
     getRowId: (row) => String(row.rowNumber),
-    state: { pagination, sorting, columnVisibility },
+    state: { pagination, sorting, columnVisibility, columnPinning },
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
+    onColumnPinningChange: setColumnPinning,
   })
 
   return (
@@ -384,6 +391,7 @@ export function ImportReviewGrid({
       tableLayout={{
         columnsResizable: true,
         columnsVisibility: true,
+        columnsPinnable: true,
         headerSticky: true,
         dense: true,
       }}
