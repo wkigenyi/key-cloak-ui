@@ -26,8 +26,6 @@ export default async function UsersPage({
   }>
 }) {
   const params = await searchParams
-  const page = Math.max(0, Number(params.page ?? 0) || 0)
-  const pageSize = 50
   const enabled =
     params.enabled === "true"
       ? true
@@ -41,8 +39,6 @@ export default async function UsersPage({
     listUsers({
       search: params.q,
       enabled,
-      first: page * pageSize,
-      max: pageSize,
       kind,
     }),
     !creating && params.edit ? getUser(params.edit) : Promise.resolve(null),

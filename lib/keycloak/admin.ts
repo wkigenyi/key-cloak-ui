@@ -70,6 +70,19 @@ function toAdminUser(user: UserRepresentation): AdminUser {
 const USER_LIST_PAGE = 100
 const USER_LIST_CAP = 2000
 
+function mergeUsers(
+  ...lists: Array<UserRepresentation[] | UserRepresentation | undefined>
+) {
+  const byId = new Map<string, UserRepresentation>()
+  for (const list of lists) {
+    const items = Array.isArray(list) ? list : list ? [list] : []
+    for (const user of items) {
+      if (user.id) byId.set(user.id, user)
+    }
+  }
+  return [...byId.values()]
+}
+
 async function findWorkspaceUsers(
   client: KcAdminClient,
   params: Pick<ListUsersParams, "search" | "enabled">,
@@ -88,7 +101,35 @@ async function findWorkspaceUsers(
     if (batch.length < USER_LIST_PAGE) break
     first += USER_LIST_PAGE
   }
-  return found
+
+  const query = params.search?.trim()
+  if (!query) return found
+
+  const extra = await Promise.all([
+    client.users.find({
+      email: query,
+      exact: true,
+      max: 20,
+      briefRepresentation: false,
+    }),
+    client.users.find({
+      username: query,
+      exact: true,
+      max: 20,
+      briefRepresentation: false,
+    }),
+    client.users.find({
+      q: `clientId:${query}`,
+      max: 20,
+      briefRepresentation: false,
+    }),
+    client.users.find({
+      q: `fineract_client_id:${query}`,
+      max: 20,
+      briefRepresentation: false,
+    }),
+  ])
+  return mergeUsers(found, ...extra)
 }
 
 export async function listUsers(params: ListUsersParams = {}) {
@@ -106,8 +147,8 @@ export async function listUsers(params: ListUsersParams = {}) {
   }
 
   const first = params.first ?? 0
-  const max = params.max ?? 50
-  const page = users.slice(first, first + max)
+  const page =
+    params.max == null ? users : users.slice(first, first + params.max)
 
   return {
     users: page,
