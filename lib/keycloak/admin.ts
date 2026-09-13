@@ -67,23 +67,41 @@ function toAdminUser(user: UserRepresentation): AdminUser {
   }
 }
 
+const USER_LIST_PAGE = 100
+const USER_LIST_CAP = 2000
+
+async function findWorkspaceUsers(
+  client: KcAdminClient,
+  params: Pick<ListUsersParams, "search" | "enabled">,
+) {
+  const found: UserRepresentation[] = []
+  let first = 0
+  while (first < USER_LIST_CAP) {
+    const batch = await client.users.find({
+      first,
+      max: USER_LIST_PAGE,
+      search: params.search || undefined,
+      enabled: params.enabled,
+      briefRepresentation: false,
+    })
+    found.push(...batch)
+    if (batch.length < USER_LIST_PAGE) break
+    first += USER_LIST_PAGE
+  }
+  return found
+}
+
 export async function listUsers(params: ListUsersParams = {}) {
   const session = await requireUserViewer()
   const client = await getAdminClient()
-  const found = await client.users.find({
-    first: 0,
-    max: 200,
-    search: params.search || undefined,
-    enabled: params.enabled,
-    briefRepresentation: false,
-  })
+  const found = await findWorkspaceUsers(client, params)
 
   const kind = params.kind ?? "self-help"
   let users = found.map(toAdminUser)
 
   if (kind === "self-help") {
     users = users.filter((user) => user.kind === "self-help")
-  } else   if (kind === "operators") {
+  } else if (kind === "operators") {
     users = users.filter((user) => user.kind === "operator")
   }
 
@@ -268,6 +286,13 @@ export async function createUser(input: {
   const displayName =
     [input.firstName, input.lastName].filter(Boolean).join(" ") || input.username
   const email = input.email || undefined
+  const attributes = toAttributeMap({
+    clientId: input.clientId.trim(),
+    saccoId,
+    phone: input.phone?.trim() || undefined,
+    displayName,
+    provisionedAt: new Date().toISOString(),
+  })
 
   try {
     const { id } = await client.users.create({
@@ -277,13 +302,7 @@ export async function createUser(input: {
       lastName: input.lastName || undefined,
       enabled: input.enabled ?? true,
       emailVerified: Boolean(email && input.emailVerified),
-      attributes: toAttributeMap({
-        clientId: input.clientId.trim(),
-        saccoId,
-        phone: input.phone?.trim() || undefined,
-        displayName,
-        provisionedAt: new Date().toISOString(),
-      }),
+      attributes,
       credentials: [
         {
           type: "password",
@@ -292,6 +311,13 @@ export async function createUser(input: {
         },
       ],
     })
+    const created = await client.users.findOne({ id })
+    if (created && !readSelfHelpProfile(created)) {
+      await client.users.update(
+        { id },
+        { ...created, attributes: { ...created.attributes, ...attributes } },
+      )
+    }
     return id
   } catch (error) {
     throw toActionError(error, "Could not create user")

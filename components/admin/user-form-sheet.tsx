@@ -33,11 +33,6 @@ export function UserFormSheet({
     router.replace(query ? `/admin/users?${query}` : "/admin/users")
   }
 
-  function openEdit(id: string) {
-    const query = withSheetParams(searchParams, { edit: id })
-    router.replace(`/admin/users?${query}`)
-  }
-
   async function onCreate(formData: FormData) {
     const result = await createUserAction(formData)
     if (!result.ok) {
@@ -45,7 +40,7 @@ export function UserFormSheet({
       return
     }
     toast.success("Self-help user created")
-    openEdit(result.id)
+    router.push(`/admin/users/${result.id}`)
     router.refresh()
   }
 
