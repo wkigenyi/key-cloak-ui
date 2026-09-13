@@ -6,27 +6,41 @@ export function CheckboxField({
   name,
   label,
   defaultChecked,
+  checked,
   disabled,
+  onCheckedChange,
 }: {
   id: string
   name: string
   label: string
   defaultChecked?: boolean
+  checked?: boolean
   disabled?: boolean
+  onCheckedChange?: (checked: boolean) => void
 }) {
+  const isControlled = checked !== undefined
+  const submitted = isControlled ? checked : Boolean(defaultChecked)
   return (
     <Field orientation="horizontal">
       <Checkbox
         id={id}
-        name={name}
+        name={isControlled ? undefined : name}
         value="on"
-        defaultChecked={defaultChecked}
+        checked={isControlled ? checked : undefined}
+        defaultChecked={isControlled ? undefined : defaultChecked}
         disabled={disabled}
+        onCheckedChange={
+          onCheckedChange
+            ? (value) => onCheckedChange(value === true)
+            : undefined
+        }
       />
       <FieldLabel htmlFor={id} className="font-normal">
         {label}
       </FieldLabel>
-      {disabled && defaultChecked ? (
+      {isControlled ? (
+        checked ? <input type="hidden" name={name} value="on" /> : null
+      ) : disabled && submitted ? (
         <input type="hidden" name={name} value="on" />
       ) : null}
     </Field>

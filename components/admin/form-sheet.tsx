@@ -13,10 +13,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { dockedSheetClassName } from "@/components/admin/sheet-layout"
 import { XIcon } from "lucide-react"
-
-const floatingSheetClassName =
-  "inset-y-4 right-4 left-auto h-[calc(100svh-2rem)] w-[min(30rem,calc(100vw-2rem))] max-w-none gap-0 overflow-hidden rounded-xl p-0 outline-none"
 
 export function FormSheet({
   open,
@@ -62,10 +60,10 @@ export function FormSheet({
       <SheetContent
         side="right"
         showCloseButton={false}
-        className={floatingSheetClassName}
+        className={dockedSheetClassName}
       >
-        <SheetHeader className="shrink-0 space-y-0 p-0">
-          <div className="flex min-h-12 items-start justify-between gap-2 border-b px-4 py-3">
+        <SheetHeader className="bg-background shrink-0 space-y-0 p-0">
+          <div className="flex min-h-14 items-start justify-between gap-2 border-b px-4 py-3">
             <div className="min-w-0">
               <SheetTitle className="text-base font-semibold">
                 {title}
@@ -115,7 +113,7 @@ export function FormSheet({
             {extra}
           </ScrollArea>
         </div>
-        <SheetFooter className="bg-background shrink-0 border-t">
+        <SheetFooter className="bg-background mt-0 shrink-0 border-t">
           <div className="flex w-full gap-2">
             {showSubmit ? (
               <Button

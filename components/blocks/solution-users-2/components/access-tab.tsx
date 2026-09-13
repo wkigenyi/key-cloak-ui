@@ -35,13 +35,13 @@ export function AccessTabContent({
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     startTransition(async () => {
-      try {
-        await updateUserAction(formData)
-        toast.success("Profile saved")
-        router.refresh()
-      } catch (error) {
-        toastFormError("Could not save profile", error)
+      const result = await updateUserAction(formData)
+      if (!result.ok) {
+        toastFormError("Could not save profile", result.error)
+        return
       }
+      toast.success("Profile saved")
+      router.refresh()
     })
   }
 

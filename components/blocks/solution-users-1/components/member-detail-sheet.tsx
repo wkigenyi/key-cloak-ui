@@ -19,6 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { dockedSheetClassName } from "@/components/admin/sheet-layout"
 import { RoleBadge, StatusBadge } from "./columns"
 import { type IMember } from "./data"
 import { XIcon, PencilIcon } from "lucide-react"
@@ -56,11 +57,11 @@ export function MemberDetailSheet({
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="inset-y-4 right-4 left-auto h-[calc(100svh-2rem)] w-[min(30rem,calc(100vw-2rem))] max-w-none overflow-hidden rounded-xl p-0 outline-none"
+        className={dockedSheetClassName}
       >
         {/* Header */}
-        <SheetHeader className="shrink-0 p-0">
-          <div className="flex min-h-12 items-center justify-between gap-2 border-b px-4">
+        <SheetHeader className="bg-background shrink-0 p-0">
+          <div className="flex min-h-14 items-center justify-between gap-2 border-b px-4">
             <SheetTitle className="min-w-0 truncate text-base font-semibold">
               Member Profile
             </SheetTitle>
@@ -147,7 +148,7 @@ export function MemberDetailSheet({
         </div>
 
         {/* Footer */}
-        <SheetFooter className="bg-background shrink-0 border-t">
+        <SheetFooter className="bg-background mt-0 shrink-0 border-t">
           <div className="flex w-full gap-2">
             <Button
               type="button"

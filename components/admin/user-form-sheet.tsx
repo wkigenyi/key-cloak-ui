@@ -39,24 +39,24 @@ export function UserFormSheet({
   }
 
   async function onCreate(formData: FormData) {
-    try {
-      const { id } = await createUserAction(formData)
-      toast.success("Self-help user created")
-      openEdit(id)
-      router.refresh()
-    } catch (error) {
-      toastFormError("Could not create user", error)
+    const result = await createUserAction(formData)
+    if (!result.ok) {
+      toastFormError("Could not create user", result.error)
+      return
     }
+    toast.success("Self-help user created")
+    openEdit(result.id)
+    router.refresh()
   }
 
   async function onUpdate(formData: FormData) {
-    try {
-      await updateUserAction(formData)
-      toast.success("User updated")
-      router.refresh()
-    } catch (error) {
-      toastFormError("Could not update user", error)
+    const result = await updateUserAction(formData)
+    if (!result.ok) {
+      toastFormError("Could not update user", result.error)
+      return
     }
+    toast.success("User updated")
+    router.refresh()
   }
 
   return (

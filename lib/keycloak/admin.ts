@@ -6,6 +6,7 @@ import { requireSession, requireUserManager, requireUserViewer } from "@/lib/aut
 import { canManageUsers } from "@/lib/auth/roles"
 import { getAdminClient } from "@/lib/keycloak/admin-client"
 import { getKeycloakConfig } from "@/lib/keycloak/config"
+import { toActionError } from "@/lib/keycloak/errors"
 import { ensureSelfHelpUserProfile } from "@/lib/keycloak/realms"
 import { MASTER_REALM, getWorkspaceRealm } from "@/lib/keycloak/workspace"
 import {
@@ -244,7 +245,8 @@ export async function createUser(input: {
   firstName?: string
   lastName?: string
   enabled?: boolean
-  password?: string
+  emailVerified?: boolean
+  password: string
   temporaryPassword?: boolean
   clientId: string
   phone?: string
@@ -255,6 +257,9 @@ export async function createUser(input: {
   if (!input.clientId.trim()) {
     throw new Error("clientId is required for self-help users.")
   }
+  if (!input.password) {
+    throw new Error("Password is required")
+  }
 
   const session = await requireUserManager()
   const client = await getAdminClient()
@@ -262,33 +267,35 @@ export async function createUser(input: {
   await ensureSelfHelpUserProfile(saccoId)
   const displayName =
     [input.firstName, input.lastName].filter(Boolean).join(" ") || input.username
+  const email = input.email || undefined
 
-  const { id } = await client.users.create({
-    username: input.username,
-    email: input.email || undefined,
-    firstName: input.firstName || undefined,
-    lastName: input.lastName || undefined,
-    enabled: input.enabled ?? true,
-    emailVerified: false,
-    attributes: toAttributeMap({
-      clientId: input.clientId.trim(),
-      saccoId,
-      phone: input.phone?.trim() || undefined,
-      displayName,
-      provisionedAt: new Date().toISOString(),
-    }),
-    credentials: input.password
-      ? [
-          {
-            type: "password",
-            value: input.password,
-            temporary: input.temporaryPassword ?? true,
-          },
-        ]
-      : undefined,
-  })
-
-  return id
+  try {
+    const { id } = await client.users.create({
+      username: input.username,
+      email,
+      firstName: input.firstName || undefined,
+      lastName: input.lastName || undefined,
+      enabled: input.enabled ?? true,
+      emailVerified: Boolean(email && input.emailVerified),
+      attributes: toAttributeMap({
+        clientId: input.clientId.trim(),
+        saccoId,
+        phone: input.phone?.trim() || undefined,
+        displayName,
+        provisionedAt: new Date().toISOString(),
+      }),
+      credentials: [
+        {
+          type: "password",
+          value: input.password,
+          temporary: input.temporaryPassword ?? true,
+        },
+      ],
+    })
+    return id
+  } catch (error) {
+    throw toActionError(error, "Could not create user")
+  }
 }
 
 function normalizeUsername(value: string) {
@@ -320,6 +327,7 @@ export async function updateUser(
     firstName?: string
     lastName?: string
     enabled?: boolean
+    emailVerified?: boolean
     clientId?: string
     phone?: string
   },
@@ -372,18 +380,29 @@ export async function updateUser(
       }
     : current.attributes
 
-  await client.users.update(
-    { id },
-    {
-      ...current,
-      username: nextUsername || currentUsername,
-      email: input.email ?? current.email,
-      firstName,
-      lastName,
-      enabled: input.enabled ?? current.enabled,
-      attributes,
-    },
-  )
+  const nextEmail = input.email !== undefined ? input.email || undefined : current.email
+  const emailVerified =
+    input.emailVerified === undefined
+      ? current.emailVerified
+      : Boolean(nextEmail && input.emailVerified)
+
+  try {
+    await client.users.update(
+      { id },
+      {
+        ...current,
+        username: nextUsername || currentUsername,
+        email: nextEmail,
+        firstName,
+        lastName,
+        enabled: input.enabled ?? current.enabled,
+        emailVerified,
+        attributes,
+      },
+    )
+  } catch (error) {
+    throw toActionError(error, "Could not update user")
+  }
 
   if (usernameChanged) {
     const updated = await client.users.findOne({ id })
@@ -404,16 +423,20 @@ export async function resetUserPassword(
   password: string,
   temporary = true,
 ) {
-  const session = await requireUserManager()
+  await requireUserManager()
   const client = await getAdminClient()
-  await client.users.resetPassword({
-    id,
-    credential: {
-      type: "password",
-      value: password,
-      temporary,
-    },
-  })
+  try {
+    await client.users.resetPassword({
+      id,
+      credential: {
+        type: "password",
+        value: password,
+        temporary,
+      },
+    })
+  } catch (error) {
+    throw toActionError(error, "Could not reset password")
+  }
 }
 
 export type ImportUserRow = {
