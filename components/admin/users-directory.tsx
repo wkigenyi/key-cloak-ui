@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import { UserFormSheet } from "@/components/admin/user-form-sheet"
 import { withSheetParams } from "@/components/admin/sheet-params"
+import { WorkspaceSwitchReady } from "@/components/admin/workspace-switch"
 import { MembersGrid } from "@/components/blocks/solution-users-1/components/members-grid"
 import type { IMember } from "@/components/blocks/solution-users-1/components/data"
 import type { AdminUser } from "@/lib/keycloak/admin"
@@ -30,6 +31,7 @@ export function UsersDirectory({
 
   return (
     <>
+      <WorkspaceSwitchReady realm={realm} />
       <MembersGrid
         members={members}
         total={total}

@@ -11,6 +11,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { ThemeToggle } from "@/components/admin/theme-toggle"
+import { useWorkspaceSwitch } from "@/components/admin/workspace-switch"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 
 function sectionLabel(pathname: string) {
@@ -23,6 +24,8 @@ function sectionLabel(pathname: string) {
 
 export function AppHeader({ realm }: { realm: string }) {
   const pathname = usePathname()
+  const { switchingTo } = useWorkspaceSwitch()
+  const currentRealm = switchingTo ?? realm
   const home = pathname.startsWith("/admin/realms")
     ? "/admin/realms"
     : pathname.startsWith("/admin/clients")
@@ -42,7 +45,7 @@ export function AppHeader({ realm }: { realm: string }) {
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink render={<Link href={home} />}>
-                  {realm}
+                  {currentRealm}
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />

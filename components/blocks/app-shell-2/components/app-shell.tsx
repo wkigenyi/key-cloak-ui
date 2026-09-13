@@ -2,6 +2,10 @@ import { cn } from "@/lib/utils"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 import type { ReactNode } from "react"
+import {
+  AdminMain,
+  WorkspaceSwitchProvider,
+} from "@/components/admin/workspace-switch"
 import { AppHeader } from "./app-header"
 import { AppSidebar } from "./app-sidebar"
 
@@ -19,8 +23,9 @@ export function AppShell({
   userEmail?: string
 }) {
   return (
-    <SidebarProvider
-      className={cn(
+    <WorkspaceSwitchProvider>
+      <SidebarProvider
+        className={cn(
         "[--sidebar-width:260px]",
         "[--sidebar-border:transparent]",
         "[&_[data-slot=sidebar-inner]]:border-border/80 [&_[data-slot=sidebar-inner]]:border",
@@ -40,19 +45,18 @@ export function AppShell({
         "[&_[data-slot=sidebar-menu-sub-button]:hover>svg]:opacity-100 [&_[data-slot=sidebar-menu-sub-button]>svg]:opacity-60"
       )}
     >
-      {/* Sidebar */}
-      <AppSidebar
-        realm={realm}
-        realms={realms}
-        userName={userName}
-        userEmail={userEmail}
-      />
-      <SidebarInset className="min-w-0">
-        <AppHeader realm={realm} />
-        <div className="flex min-w-0 flex-1 flex-col gap-4 py-2 pr-4 pl-2">
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        {/* Sidebar */}
+        <AppSidebar
+          realm={realm}
+          realms={realms}
+          userName={userName}
+          userEmail={userEmail}
+        />
+        <SidebarInset className="min-w-0">
+          <AppHeader realm={realm} />
+          <AdminMain>{children}</AdminMain>
+        </SidebarInset>
+      </SidebarProvider>
+    </WorkspaceSwitchProvider>
   )
 }

@@ -19,6 +19,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { ThemeModeTabs } from "@/components/admin/theme-mode-tabs"
+import { useWorkspaceSwitch } from "@/components/admin/workspace-switch"
 import { ChevronsUpDownIcon } from "lucide-react"
 
 function SignOutMenuItem() {
@@ -50,7 +51,9 @@ export function NavWorkspace({
   userName?: string
   userEmail?: string
 }) {
-  const initials = (userName ?? realm).charAt(0).toUpperCase()
+  const { switchingTo } = useWorkspaceSwitch()
+  const currentRealm = switchingTo ?? realm
+  const initials = (userName ?? currentRealm).charAt(0).toUpperCase()
 
   return (
     <SidebarMenu>
@@ -70,7 +73,7 @@ export function NavWorkspace({
               </AvatarFallback>
             </Avatar>
             <span className="truncate text-sm font-medium in-data-[state=collapsed]:hidden">
-              {userName ?? realm}
+              {userName ?? currentRealm}
             </span>
             <ChevronsUpDownIcon
               className="ml-auto size-3.5 opacity-60 in-data-[state=collapsed]:hidden"
@@ -82,14 +85,14 @@ export function NavWorkspace({
               <div className={cn("px-2 py-1.5")}>
                 <p className="text-sm font-medium">{userName ?? "Signed in"}</p>
                 <p className="text-muted-foreground truncate text-xs">
-                  {userEmail ?? realm}
+                  {userEmail ?? currentRealm}
                 </p>
               </div>
               <div className="py-2.5">
                 <ThemeModeTabs />
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>Realm: {realm}</DropdownMenuItem>
+              <DropdownMenuItem disabled>Realm: {currentRealm}</DropdownMenuItem>
               <DropdownMenuSeparator />
               <SignOutMenuItem />
             </DropdownMenuGroup>
