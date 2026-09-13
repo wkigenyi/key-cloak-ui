@@ -30,6 +30,7 @@ export function RealmSwitcher({
         if (!next || next === realm) return
         startTransition(async () => {
           await switchWorkspaceAction(next)
+          router.push("/admin/users")
           router.refresh()
         })
       }}
