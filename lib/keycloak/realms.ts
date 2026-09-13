@@ -24,7 +24,7 @@ import { getAdminClient } from "@/lib/keycloak/admin-client"
 import { toActionError } from "@/lib/keycloak/errors"
 import {
   BUILT_IN_CLIENT_IDS,
-  CONSOLE_CLIENT_ID,
+  ensureWorkspaceOidcClients,
 } from "@/lib/keycloak/oidc-clients"
 import { SELF_HELP_ATTRIBUTE_NAMES } from "@/lib/keycloak/self-help"
 import {
@@ -273,7 +273,6 @@ async function cloneTemplateClients(fromRealm: string, toRealm: string) {
     if (
       !clientId ||
       BUILT_IN_CLIENT_IDS.has(clientId) ||
-      clientId === CONSOLE_CLIENT_ID ||
       existing.has(clientId)
     ) {
       continue
@@ -430,6 +429,8 @@ export async function createRealm(input: {
     await cloneTemplateProfile(template, realm)
     await cloneTemplateScopes(template, realm)
     await cloneTemplateClients(template, realm)
+    const workspace = await getAdminClient(undefined, realm)
+    await ensureWorkspaceOidcClients(workspace)
   } catch (error) {
     await client.realms.del({ realm }).catch(() => undefined)
     throw toActionError(error, "Could not copy the app template into the new realm")

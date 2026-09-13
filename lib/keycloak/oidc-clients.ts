@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/session"
 import { canManageClients } from "@/lib/auth/roles"
 import { getAdminClient } from "@/lib/keycloak/admin-client"
+import { MASTER_REALM } from "@/lib/keycloak/workspace"
 import {
   BUILT_IN_CLIENT_IDS,
   CONSOLE_CLIENT_ID,
@@ -58,6 +59,18 @@ function selfHelpProtocolMappers(): ProtocolMapperRepresentation[] {
   }))
 }
 
+const CONSOLE_SERVICE_ROLES = new Set([
+  "manage-users",
+  "view-users",
+  "query-users",
+  "view-clients",
+  "query-clients",
+])
+
+function fineractUiOrigin() {
+  return (process.env.FINERACT_UI_URL ?? "").replace(/\/$/, "")
+}
+
 async function ensureSelfHelpClientMappers(
   admin: KcAdminClient,
   clientId?: string,
@@ -72,6 +85,121 @@ async function ensureSelfHelpClientMappers(
     if (!mapper.name || names.has(mapper.name)) continue
     await admin.clients.addProtocolMapper({ id: selfHelp.id }, mapper)
   }
+}
+
+async function ensureSelfHelpClient(admin: KcAdminClient) {
+  const found = await admin.clients.find({ clientId: SELF_HELP_CLIENT_ID })
+  if (!found[0]?.id) {
+    await admin.clients.create({
+      clientId: SELF_HELP_CLIENT_ID,
+      name: "Self Help",
+      description: "Public client for the member Self Help app (phone + password).",
+      enabled: true,
+      publicClient: true,
+      protocol: "openid-connect",
+      rootUrl: "https://mobile.bankayo.io",
+      baseUrl: "https://mobile.bankayo.io",
+      redirectUris: ["https://mobile.bankayo.io/*", "http://localhost:*"],
+      webOrigins: ["+"],
+      standardFlowEnabled: true,
+      implicitFlowEnabled: false,
+      directAccessGrantsEnabled: true,
+      serviceAccountsEnabled: false,
+      fullScopeAllowed: true,
+      attributes: { "pkce.code.challenge.method": "S256" },
+      protocolMappers: selfHelpProtocolMappers(),
+    })
+  }
+  await ensureSelfHelpClientMappers(admin, SELF_HELP_CLIENT_ID)
+}
+
+async function ensureConsoleServiceRoles(admin: KcAdminClient, clientUuid: string) {
+  const serviceUser = await admin.clients.getServiceAccountUser({ id: clientUuid })
+  if (!serviceUser?.id) return
+  const [realmManagement] = await admin.clients.find({
+    clientId: "realm-management",
+  })
+  if (!realmManagement?.id) return
+  const [available, assigned] = await Promise.all([
+    admin.clients.listRoles({ id: realmManagement.id }),
+    admin.users.listClientRoleMappings({
+      id: serviceUser.id,
+      clientUniqueId: realmManagement.id,
+    }),
+  ])
+  const have = new Set((assigned ?? []).map((role) => role.name).filter(Boolean))
+  const toAdd = (available ?? []).filter(
+    (role): role is typeof role & { id: string; name: string } => {
+      if (!role.id || !role.name) return false
+      return CONSOLE_SERVICE_ROLES.has(role.name) && !have.has(role.name)
+    },
+  )
+  if (toAdd.length === 0) return
+  await admin.users.addClientRoleMappings({
+    id: serviceUser.id,
+    clientUniqueId: realmManagement.id,
+    roles: toAdd.map((role) => ({ id: role.id, name: role.name })),
+  })
+}
+
+async function ensureKeycloakUiClient(admin: KcAdminClient) {
+  const found = await admin.clients.find({ clientId: CONSOLE_CLIENT_ID })
+  let client = found[0]
+  if (!client?.id) {
+    const origin = fineractUiOrigin()
+    const redirectUris = ["http://localhost:*"]
+    const webOrigins = ["+"]
+    if (origin) {
+      redirectUris.unshift(`${origin}/*`)
+      webOrigins.unshift(origin)
+    }
+    const { id } = await admin.clients.create({
+      clientId: CONSOLE_CLIENT_ID,
+      name: "Fineract UI",
+      description: "Confidential client for officers to manage Self Help users.",
+      enabled: true,
+      publicClient: false,
+      protocol: "openid-connect",
+      secret: process.env.AUTH_KEYCLOAK_SECRET || undefined,
+      rootUrl: origin || undefined,
+      baseUrl: origin || undefined,
+      redirectUris,
+      webOrigins,
+      standardFlowEnabled: true,
+      implicitFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      serviceAccountsEnabled: true,
+      fullScopeAllowed: true,
+      attributes: { "pkce.code.challenge.method": "S256" },
+    })
+    client = { id, clientId: CONSOLE_CLIENT_ID }
+  } else if (
+    !client.serviceAccountsEnabled ||
+    client.publicClient ||
+    client.enabled === false
+  ) {
+    await admin.clients.update(
+      { id: client.id },
+      {
+        ...client,
+        enabled: true,
+        publicClient: false,
+        serviceAccountsEnabled: true,
+      },
+    )
+  }
+  if (client.id) {
+    await ensureConsoleServiceRoles(admin, client.id)
+  }
+}
+
+/** Create self-help + keycloak-ui on a SACCO realm if they are missing. */
+export async function ensureWorkspaceOidcClients(admin?: KcAdminClient) {
+  const client = admin ?? (await getAdminClient())
+  const realm = client.realmName
+  if (!realm || realm === MASTER_REALM) return
+  await ensureSelfHelpClient(client)
+  await ensureKeycloakUiClient(client)
 }
 
 function accessType(client: ClientRepresentation): AccessType {
@@ -118,7 +246,7 @@ export async function listClients(params: ListClientsParams = {}) {
     search: Boolean(params.search),
   })
 
-  await ensureSelfHelpClientMappers(client).catch(() => undefined)
+  await ensureWorkspaceOidcClients(client).catch(() => undefined)
 
   const kind = params.kind ?? "applications"
   let clients = found.map(toAdminClient)
@@ -162,7 +290,7 @@ export async function getClient(id: string) {
   const client = await getAdminClient()
   const found = await client.clients.findOne({ id })
   if (!found?.id) return null
-  await ensureSelfHelpClientMappers(client, found.clientId).catch(() => undefined)
+  await ensureWorkspaceOidcClients(client).catch(() => undefined)
   return {
     client: toAdminClient(found),
     canManage: canManageClients(session.roles),
@@ -174,7 +302,7 @@ export async function getClientDetail(id: string): Promise<ClientDetail | null> 
   const admin = await getAdminClient()
   const found = await admin.clients.findOne({ id })
   if (!found?.id) return null
-  await ensureSelfHelpClientMappers(admin, found.clientId).catch(() => undefined)
+  await ensureWorkspaceOidcClients(admin).catch(() => undefined)
 
   const [mappers, sessions, sessionCount] = await Promise.all([
     admin.clients.listProtocolMappers({ id }).catch(() => []),
@@ -275,8 +403,8 @@ export async function createClient(input: {
     protocolMappers:
       clientId === SELF_HELP_CLIENT_ID ? selfHelpProtocolMappers() : undefined,
   })
-  if (clientId === SELF_HELP_CLIENT_ID) {
-    await ensureSelfHelpClientMappers(client, clientId)
+  if (clientId === SELF_HELP_CLIENT_ID || clientId === CONSOLE_CLIENT_ID) {
+    await ensureWorkspaceOidcClients(client)
   }
   return id
 }
@@ -340,7 +468,7 @@ export async function updateClient(
         : (input.serviceAccountsEnabled ?? current.serviceAccountsEnabled),
     },
   )
-  await ensureSelfHelpClientMappers(client, clientId)
+  await ensureWorkspaceOidcClients(client)
 }
 
 export async function setClientEnabled(id: string, enabled: boolean) {

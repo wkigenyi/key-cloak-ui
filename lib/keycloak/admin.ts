@@ -7,6 +7,7 @@ import { canManageUsers } from "@/lib/auth/roles"
 import { getAdminClient } from "@/lib/keycloak/admin-client"
 import { getKeycloakConfig } from "@/lib/keycloak/config"
 import { toActionError } from "@/lib/keycloak/errors"
+import { ensureWorkspaceOidcClients } from "@/lib/keycloak/oidc-clients"
 import { ensureSelfHelpUserProfile } from "@/lib/keycloak/realms"
 import { MASTER_REALM, getWorkspaceRealm } from "@/lib/keycloak/workspace"
 import {
@@ -137,6 +138,7 @@ async function findWorkspaceUsers(
 export async function listUsers(params: ListUsersParams = {}) {
   const session = await requireUserViewer()
   const client = await getAdminClient()
+  await ensureWorkspaceOidcClients(client).catch(() => undefined)
   const found = await findWorkspaceUsers(client, params)
 
   const kind = params.kind ?? "self-help"

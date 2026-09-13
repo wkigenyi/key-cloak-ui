@@ -316,6 +316,7 @@ async function main() {
   }
 
   await ensureSelfHelpClient(accessToken, realm)
+  await ensureKeycloakUiClient(accessToken, realm)
   const realms = await fetch(`${base}/admin/realms`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   }).then((response) => response.json())
@@ -323,6 +324,7 @@ async function main() {
     const name = item.realm
     if (!name || name === "master" || name === realm) continue
     await ensureSelfHelpClient(accessToken, name)
+    await ensureKeycloakUiClient(accessToken, name)
   }
   await ensureMasterConsole(accessToken)
   console.log(
@@ -424,6 +426,130 @@ async function ensureSelfHelpClient(accessToken, targetRealm) {
       },
       targetRealm,
     )
+  }
+}
+
+const CONSOLE_SERVICE_ROLES = [
+  "manage-users",
+  "view-users",
+  "query-users",
+  "view-clients",
+  "query-clients",
+]
+
+function fineractUiClientBody() {
+  const origin = (process.env.FINERACT_UI_URL ?? "").replace(/\/$/, "")
+  const redirectUris = ["http://localhost:*"]
+  const webOrigins = ["+"]
+  if (origin) {
+    redirectUris.unshift(`${origin}/*`)
+    webOrigins.unshift(origin)
+  }
+  return {
+    clientId: "keycloak-ui",
+    name: "Fineract UI",
+    description: "Confidential client for officers to manage Self Help users.",
+    enabled: true,
+    publicClient: false,
+    secret: process.env.AUTH_KEYCLOAK_SECRET ?? "keycloak-ui-dev-secret",
+    protocol: "openid-connect",
+    rootUrl: origin || undefined,
+    baseUrl: origin || undefined,
+    redirectUris,
+    webOrigins,
+    standardFlowEnabled: true,
+    implicitFlowEnabled: false,
+    directAccessGrantsEnabled: false,
+    serviceAccountsEnabled: true,
+    fullScopeAllowed: true,
+    attributes: { "pkce.code.challenge.method": "S256" },
+  }
+}
+
+async function ensureConsoleServiceRoles(accessToken, targetRealm) {
+  const serviceAccount = (
+    await api(
+      accessToken,
+      `/users?username=${encodeURIComponent("service-account-keycloak-ui")}&exact=true`,
+      {},
+      targetRealm,
+    )
+  )[0]
+  const [realmManagement] = await api(
+    accessToken,
+    "/clients?clientId=realm-management",
+    {},
+    targetRealm,
+  )
+  if (!serviceAccount?.id || !realmManagement?.id) return
+  const available = await api(
+    accessToken,
+    `/clients/${realmManagement.id}/roles`,
+    {},
+    targetRealm,
+  )
+  const assigned = await api(
+    accessToken,
+    `/users/${serviceAccount.id}/role-mappings/clients/${realmManagement.id}`,
+    {},
+    targetRealm,
+  )
+  const have = new Set((Array.isArray(assigned) ? assigned : []).map((role) => role.name))
+  const toAdd = (Array.isArray(available) ? available : []).filter(
+    (role) => CONSOLE_SERVICE_ROLES.includes(role.name) && !have.has(role.name),
+  )
+  if (toAdd.length === 0) return
+  await api(
+    accessToken,
+    `/users/${serviceAccount.id}/role-mappings/clients/${realmManagement.id}`,
+    { method: "POST", body: JSON.stringify(toAdd) },
+    targetRealm,
+  )
+}
+
+async function ensureKeycloakUiClient(accessToken, targetRealm) {
+  if (targetRealm === "master") return
+  const found = await api(
+    accessToken,
+    "/clients?clientId=keycloak-ui",
+    {},
+    targetRealm,
+  )
+  if (!found[0]) {
+    await api(
+      accessToken,
+      "/clients",
+      { method: "POST", body: JSON.stringify(fineractUiClientBody()) },
+      targetRealm,
+    )
+    console.log(`Seeded keycloak-ui client in ${targetRealm}`)
+  } else {
+    const client = found[0]
+    if (!client.serviceAccountsEnabled || client.publicClient || client.enabled === false) {
+      await api(
+        accessToken,
+        `/clients/${client.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            ...client,
+            enabled: true,
+            publicClient: false,
+            serviceAccountsEnabled: true,
+          }),
+        },
+        targetRealm,
+      )
+    }
+  }
+  const clients = await api(
+    accessToken,
+    "/clients?clientId=keycloak-ui",
+    {},
+    targetRealm,
+  )
+  if (clients[0]?.id) {
+    await ensureConsoleServiceRoles(accessToken, targetRealm)
   }
 }
 

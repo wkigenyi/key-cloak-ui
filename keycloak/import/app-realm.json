@@ -93,6 +93,27 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "keycloak-ui",
+      "name": "Fineract UI",
+      "description": "Confidential client for officers to manage Self Help users.",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "keycloak-ui-dev-secret",
+      "protocol": "openid-connect",
+      "redirectUris": ["http://localhost:*"],
+      "webOrigins": ["+"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "basic"],
+      "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
     }
   ],
   "groups": [
