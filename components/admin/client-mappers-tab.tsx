@@ -29,7 +29,7 @@ import {
   SELF_HELP_REQUIRED_CLAIMS,
   type AdminClient,
   type ClientMapper,
-} from "@/lib/keycloak/oidc-clients"
+} from "@/lib/keycloak/oidc-client-types"
 
 export function ClientMappersTab({
   client,

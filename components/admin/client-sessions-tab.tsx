@@ -16,7 +16,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { Separator } from "@/components/ui/separator"
-import type { ClientSessionInfo } from "@/lib/keycloak/oidc-clients"
+import type { ClientSessionInfo } from "@/lib/keycloak/oidc-client-types"
 import { MonitorIcon } from "lucide-react"
 
 function formatWhen(iso: string) {

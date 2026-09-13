@@ -10,28 +10,36 @@ import {
 } from "@/lib/auth/session"
 import { canManageClients } from "@/lib/auth/roles"
 import { getAdminClient } from "@/lib/keycloak/admin-client"
+import {
+  BUILT_IN_CLIENT_IDS,
+  CONSOLE_CLIENT_ID,
+  SELF_HELP_CLIENT_ID,
+  SELF_HELP_TOKEN_CLAIMS,
+  type AccessType,
+  type AdminClient,
+  type ClientDetail,
+  type ClientKind,
+  type ClientMapper,
+  type ClientSessionInfo,
+  type ListClientsParams,
+} from "@/lib/keycloak/oidc-client-types"
 
-export const BUILT_IN_CLIENT_IDS = new Set([
-  "account",
-  "account-console",
-  "admin-cli",
-  "broker",
-  "realm-management",
-  "security-admin-console",
-])
-
-export const CONSOLE_CLIENT_ID = "keycloak-ui"
-export const SELF_HELP_CLIENT_ID = "self-help"
-
-const SELF_HELP_TOKEN_CLAIMS = [
-  { name: "clientId", attribute: "clientId", claim: "clientId" },
-  {
-    name: "fineract_client_id",
-    attribute: "fineract_client_id",
-    claim: "fineract_client_id",
-  },
-  { name: "saccoId", attribute: "saccoId", claim: "saccoId" },
-] as const
+export {
+  BUILT_IN_CLIENT_IDS,
+  CONSOLE_CLIENT_ID,
+  SELF_HELP_CLIENT_ID,
+  SELF_HELP_REQUIRED_CLAIMS,
+  SELF_HELP_TOKEN_CLAIMS,
+} from "@/lib/keycloak/oidc-client-types"
+export type {
+  AccessType,
+  AdminClient,
+  ClientDetail,
+  ClientKind,
+  ClientMapper,
+  ClientSessionInfo,
+  ListClientsParams,
+} from "@/lib/keycloak/oidc-client-types"
 
 function selfHelpProtocolMappers(): ProtocolMapperRepresentation[] {
   return SELF_HELP_TOKEN_CLAIMS.map((mapper) => ({
@@ -65,67 +73,6 @@ async function ensureSelfHelpClientMappers(
     await admin.clients.addProtocolMapper({ id: selfHelp.id }, mapper)
   }
 }
-
-export type ClientKind = "applications" | "built-in" | "all"
-
-export type AccessType = "public" | "confidential" | "bearer-only"
-
-export type AdminClient = {
-  id: string
-  clientId: string
-  name: string
-  description: string
-  protocol: string
-  enabled: boolean
-  accessType: AccessType
-  publicClient: boolean
-  rootUrl: string
-  baseUrl: string
-  redirectUris: string[]
-  webOrigins: string[]
-  standardFlowEnabled: boolean
-  implicitFlowEnabled: boolean
-  directAccessGrantsEnabled: boolean
-  serviceAccountsEnabled: boolean
-  builtIn: boolean
-  protected: boolean
-}
-
-export type ListClientsParams = {
-  search?: string
-  enabled?: boolean
-  kind?: ClientKind
-  first?: number
-  max?: number
-}
-
-export type ClientMapper = {
-  id: string
-  name: string
-  protocolMapper: string
-  userAttribute: string
-  claimName: string
-}
-
-export type ClientSessionInfo = {
-  id: string
-  username: string
-  ip: string
-  startedAt: string
-  lastAccess: string
-}
-
-export type ClientDetail = {
-  client: AdminClient
-  mappers: ClientMapper[]
-  sessions: ClientSessionInfo[]
-  sessionCount: number
-  canManage: boolean
-}
-
-export const SELF_HELP_REQUIRED_CLAIMS = SELF_HELP_TOKEN_CLAIMS.map(
-  (item) => item.claim,
-)
 
 function accessType(client: ClientRepresentation): AccessType {
   if (client.bearerOnly) return "bearer-only"

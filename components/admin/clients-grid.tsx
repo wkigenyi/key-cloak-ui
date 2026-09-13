@@ -45,7 +45,7 @@ import {
   PencilIcon,
 } from "lucide-react"
 import { setClientEnabledAction } from "@/app/admin/clients/actions"
-import type { AdminClient } from "@/lib/keycloak/oidc-clients"
+import type { AdminClient } from "@/lib/keycloak/oidc-client-types"
 
 const ACCESS_LABEL = {
   public: "Public",

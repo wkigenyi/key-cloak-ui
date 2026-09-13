@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { FieldGroup } from "@/components/ui/field"
-import type { AdminClient } from "@/lib/keycloak/oidc-clients"
+import type { AdminClient } from "@/lib/keycloak/oidc-client-types"
 
 export function ClientDangerTab({
   client,

@@ -1,7 +1,7 @@
 import { CheckboxField } from "@/components/admin/checkbox-field"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import type { AdminClient } from "@/lib/keycloak/oidc-clients"
+import type { AdminClient } from "@/lib/keycloak/oidc-client-types"
 
 function lines(values: string[]) {
   return values.join("\n")

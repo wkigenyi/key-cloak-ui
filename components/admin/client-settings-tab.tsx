@@ -17,7 +17,7 @@ import {
   FramePanel,
   FrameTitle,
 } from "@/components/reui/frame"
-import type { AdminClient } from "@/lib/keycloak/oidc-clients"
+import type { AdminClient } from "@/lib/keycloak/oidc-client-types"
 
 const ACCESS_LABEL = {
   public: "Public",

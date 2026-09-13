@@ -17,7 +17,7 @@ import {
 import {
   SELF_HELP_CLIENT_ID,
   type ClientDetail as ClientDetailData,
-} from "@/lib/keycloak/oidc-clients"
+} from "@/lib/keycloak/oidc-client-types"
 import {
   KeyRoundIcon,
   ListChecksIcon,

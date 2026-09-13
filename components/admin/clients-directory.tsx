@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ClientFormSheet } from "@/components/admin/client-form-sheet"
 import { ClientsGrid } from "@/components/admin/clients-grid"
 import { withSheetParams } from "@/components/admin/sheet-params"
-import type { AdminClient } from "@/lib/keycloak/oidc-clients"
+import type { AdminClient } from "@/lib/keycloak/oidc-client-types"
 
 export function ClientsDirectory({
   clients,

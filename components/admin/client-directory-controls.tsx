@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import type { ClientKind } from "@/lib/keycloak/oidc-clients"
+import type { ClientKind } from "@/lib/keycloak/oidc-client-types"
 
 const KINDS: { id: ClientKind; label: string }[] = [
   { id: "applications", label: "Applications" },
