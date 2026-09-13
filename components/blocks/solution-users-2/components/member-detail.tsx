@@ -164,6 +164,7 @@ export function MemberDetail({
               userId={user.id}
               email={user.email}
               emailVerified={user.emailVerified}
+              requiredActions={user.requiredActions}
               credentials={credentials}
               canManage={canManage}
             />

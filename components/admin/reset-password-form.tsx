@@ -43,7 +43,8 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
       <div>
         <p className="text-sm font-medium">Reset password</p>
         <p className="text-muted-foreground text-xs">
-          Temporary passwords must be changed at next sign-in.
+          Leave Temporary off so the member can sign in from Self Help. A
+          temporary password blocks tokens until it is changed in Keycloak.
         </p>
       </div>
       <input type="hidden" name="id" value={userId} />
@@ -80,7 +81,6 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
         id="temporaryPassword"
         name="temporaryPassword"
         label="Temporary"
-        defaultChecked
       />
       <Button
         type="submit"

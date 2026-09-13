@@ -34,6 +34,7 @@ export type AdminUser = {
   displayName: string
   kind: "self-help" | "operator"
   lastLogin: string
+  requiredActions: string[]
 }
 
 export type ListUsersParams = {
@@ -64,6 +65,7 @@ function toAdminUser(user: UserRepresentation): AdminUser {
         ? "self-help"
         : "operator",
     lastLogin: "",
+    requiredActions: user.requiredActions ?? [],
   }
 }
 
@@ -211,6 +213,7 @@ export async function getUserDetail(id: string): Promise<UserDetail | null> {
   const realm = await getWorkspaceRealm()
   const found = await client.users.findOne({ id })
   if (!found?.id) return null
+  await ensureSelfHelpUserProfile(realm)
 
   const [sessions, credentials, events] = await Promise.all([
     client.users.listSessions({ id }).catch(() => []),
@@ -344,11 +347,12 @@ export async function createUser(input: {
       enabled: input.enabled ?? true,
       emailVerified: Boolean(email && input.emailVerified),
       attributes,
+      requiredActions: input.temporaryPassword ? ["UPDATE_PASSWORD"] : [],
       credentials: [
         {
           type: "password",
           value: input.password,
-          temporary: input.temporaryPassword ?? true,
+          temporary: Boolean(input.temporaryPassword),
         },
       ],
     })
@@ -485,10 +489,24 @@ export async function setUserEnabled(id: string, enabled: boolean) {
   await updateUser(id, { enabled })
 }
 
+export async function clearUserRequiredActions(id: string) {
+  await requireUserManager()
+  const client = await getAdminClient()
+  const current = await client.users.findOne({ id })
+  if (!current) {
+    throw new Error("User not found")
+  }
+  try {
+    await client.users.update({ id }, { ...current, requiredActions: [] })
+  } catch (error) {
+    throw toActionError(error, "Could not clear required actions")
+  }
+}
+
 export async function resetUserPassword(
   id: string,
   password: string,
-  temporary = true,
+  temporary = false,
 ) {
   await requireUserManager()
   const client = await getAdminClient()

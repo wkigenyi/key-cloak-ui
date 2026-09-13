@@ -430,6 +430,7 @@ export function MembersGrid({
       const formData = new FormData()
       formData.set("id", member.id)
       formData.set("password", password)
+      formData.set("passwordConfirm", password)
       if (temporary) formData.set("temporaryPassword", "on")
       await resetUserPasswordAction(formData)
       toast.success("Password reset", {

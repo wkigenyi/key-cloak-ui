@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import {
+  clearUserRequiredActions,
   createUser,
   deleteUser,
   logoutUserSession,
@@ -84,6 +85,14 @@ export async function setUserEnabledAction(id: string, enabled: boolean) {
     revalidatePath("/admin/users")
     revalidatePath(`/admin/users/${id}`)
   }, "Could not update user")
+}
+
+export async function clearUserRequiredActionsAction(id: string) {
+  return asActionResult(async () => {
+    await clearUserRequiredActions(id)
+    revalidatePath("/admin/users")
+    revalidatePath(`/admin/users/${id}`)
+  }, "Could not clear required actions")
 }
 
 export async function resetUserPasswordAction(formData: FormData) {

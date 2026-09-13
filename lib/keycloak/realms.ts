@@ -148,11 +148,28 @@ function templateRealmSettings(
   }
 }
 
+const OPTIONAL_MEMBER_ATTRIBUTES = new Set(["email", "firstName", "lastName"])
+
+function withoutMemberRequiredFields(
+  attributes: UserProfileConfig["attributes"],
+) {
+  return (attributes ?? []).map((attribute) => {
+    if (
+      !OPTIONAL_MEMBER_ATTRIBUTES.has(attribute.name ?? "") ||
+      !attribute.required
+    ) {
+      return attribute
+    }
+    const { required: _required, ...rest } = attribute
+    return rest
+  })
+}
+
 function withSelfHelpProfileAttributes(profile: UserProfileConfig): UserProfileConfig {
   const existing = new Set(
     (profile.attributes ?? []).map((attribute) => attribute.name).filter(Boolean),
   )
-  const attributes = [...(profile.attributes ?? [])]
+  const attributes = withoutMemberRequiredFields(profile.attributes)
   for (const name of SELF_HELP_ATTRIBUTE_NAMES) {
     if (existing.has(name)) continue
     attributes.push({
@@ -183,7 +200,11 @@ function profileNeedsSelfHelpAttributes(profile: UserProfileConfig) {
   const blocked =
     !profile.unmanagedAttributePolicy ||
     profile.unmanagedAttributePolicy === UnmanagedAttributePolicy.Disabled
-  return missing || blocked
+  const requiresCoreFields = (profile.attributes ?? []).some(
+    (attribute) =>
+      OPTIONAL_MEMBER_ATTRIBUTES.has(attribute.name ?? "") && attribute.required,
+  )
+  return missing || blocked || requiresCoreFields
 }
 
 export async function ensureSelfHelpUserProfile(realm?: string) {

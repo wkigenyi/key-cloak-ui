@@ -209,7 +209,6 @@ export function UserFormFields({
           id="temporaryPassword"
           name="temporaryPassword"
           label="Password is temporary"
-          defaultChecked
         />
       ) : null}
     </>

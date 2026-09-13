@@ -312,7 +312,7 @@ export function ActionsCell({
             <AlertDialogDescription>
               Set a new password for{" "}
               <span className="text-foreground font-medium">{member.name}</span>
-              . It will be temporary by default.
+              . Leave this permanent so the member can sign in from Self Help.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="px-4">
@@ -334,7 +334,7 @@ export function ActionsCell({
               onClick={(event) => {
                 event.preventDefault()
                 startReset(async () => {
-                  await onResetPassword?.(member, password, true)
+                  await onResetPassword?.(member, password, false)
                   setPassword("")
                   setResetOpen(false)
                 })
