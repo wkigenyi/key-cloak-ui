@@ -99,6 +99,34 @@ export type ListClientsParams = {
   max?: number
 }
 
+export type ClientMapper = {
+  id: string
+  name: string
+  protocolMapper: string
+  userAttribute: string
+  claimName: string
+}
+
+export type ClientSessionInfo = {
+  id: string
+  username: string
+  ip: string
+  startedAt: string
+  lastAccess: string
+}
+
+export type ClientDetail = {
+  client: AdminClient
+  mappers: ClientMapper[]
+  sessions: ClientSessionInfo[]
+  sessionCount: number
+  canManage: boolean
+}
+
+export const SELF_HELP_REQUIRED_CLAIMS = SELF_HELP_TOKEN_CLAIMS.map(
+  (item) => item.claim,
+)
+
 function accessType(client: ClientRepresentation): AccessType {
   if (client.bearerOnly) return "bearer-only"
   if (client.publicClient) return "public"
@@ -167,6 +195,21 @@ export async function listClients(params: ListClientsParams = {}) {
   }
 }
 
+function formatEpoch(value?: number) {
+  if (!value) return ""
+  return new Date(value).toISOString()
+}
+
+function toClientMapper(mapper: ProtocolMapperRepresentation): ClientMapper {
+  return {
+    id: mapper.id ?? mapper.name ?? "",
+    name: mapper.name ?? "",
+    protocolMapper: mapper.protocolMapper ?? "",
+    userAttribute: String(mapper.config?.["user.attribute"] ?? ""),
+    claimName: String(mapper.config?.["claim.name"] ?? ""),
+  }
+}
+
 export async function getClient(id: string) {
   const session = await requireClientViewer()
   const client = await getAdminClient()
@@ -177,6 +220,59 @@ export async function getClient(id: string) {
     client: toAdminClient(found),
     canManage: canManageClients(session.roles),
   }
+}
+
+export async function getClientDetail(id: string): Promise<ClientDetail | null> {
+  const session = await requireClientViewer()
+  const admin = await getAdminClient()
+  const found = await admin.clients.findOne({ id })
+  if (!found?.id) return null
+  await ensureSelfHelpClientMappers(admin, found.clientId).catch(() => undefined)
+
+  const [mappers, sessions, sessionCount] = await Promise.all([
+    admin.clients.listProtocolMappers({ id }).catch(() => []),
+    admin.clients.listSessions({ id, max: 25 }).catch(() => []),
+    admin.clients.getSessionCount({ id }).catch(() => ({ count: 0 })),
+  ])
+
+  return {
+    client: toAdminClient(found),
+    mappers: (mappers ?? []).map(toClientMapper),
+    sessions: (sessions ?? [])
+      .map((item) => ({
+        id: item.id ?? "",
+        username: item.username ?? "",
+        ip: item.ipAddress ?? "",
+        startedAt: formatEpoch(item.start),
+        lastAccess: formatEpoch(item.lastAccess),
+      }))
+      .filter((item) => item.id),
+    sessionCount: sessionCount?.count ?? 0,
+    canManage: canManageClients(session.roles),
+  }
+}
+
+export async function ensureSelfHelpTokenMappers(id: string) {
+  await requireClientManager()
+  const admin = await getAdminClient()
+  const found = await admin.clients.findOne({ id })
+  if (!found?.id) throw new Error("Client not found")
+  if (found.clientId !== SELF_HELP_CLIENT_ID) {
+    throw new Error("Token mappers are only added for the self-help client.")
+  }
+  await ensureSelfHelpClientMappers(admin, found.clientId)
+}
+
+export async function deleteClient(id: string) {
+  await requireClientManager()
+  const admin = await getAdminClient()
+  const found = await admin.clients.findOne({ id })
+  if (!found?.id) throw new Error("Client not found")
+  const clientId = found.clientId ?? ""
+  if (isProtectedClientId(clientId)) {
+    throw new Error("Built-in and console clients cannot be deleted.")
+  }
+  await admin.clients.del({ id })
 }
 
 function parseLines(value?: string) {

@@ -65,14 +65,14 @@ export function ClientsGrid({
   canManage,
   realm,
   onCreate,
-  onEdit,
+  onView,
 }: {
   clients: AdminClient[]
   total: number
   canManage: boolean
   realm: string
   onCreate?: () => void
-  onEdit?: (client: AdminClient) => void
+  onView?: (client: AdminClient) => void
 }) {
   const router = useRouter()
   const [pagination, setPagination] = useState<PaginationState>({
@@ -85,24 +85,22 @@ export function ClientsGrid({
 
   const handleView = useCallback(
     (client: AdminClient) => {
-      onEdit?.(client)
+      onView?.(client)
     },
-    [onEdit],
+    [onView],
   )
 
   const handleToggleEnabled = useCallback(
     async (client: AdminClient) => {
-      try {
-        await setClientEnabledAction(client.id, !client.enabled)
-        toast.success(client.enabled ? "Client disabled" : "Client enabled", {
-          description: client.clientId,
-        })
-        router.refresh()
-      } catch (error) {
-        toast.error("Could not update client", {
-          description: error instanceof Error ? error.message : undefined,
-        })
+      const result = await setClientEnabledAction(client.id, !client.enabled)
+      if (!result.ok) {
+        toast.error("Could not update client", { description: result.error })
+        return
       }
+      toast.success(client.enabled ? "Client disabled" : "Client enabled", {
+        description: client.clientId,
+      })
+      router.refresh()
     },
     [router],
   )
@@ -118,14 +116,18 @@ export function ClientsGrid({
         cell: ({ row }) => {
           const client = row.original
           return (
-            <div className="min-w-0">
+            <button
+              type="button"
+              className="min-w-0 text-left"
+              onClick={() => handleView(client)}
+            >
               <div className="text-foreground line-clamp-1 font-medium">
                 {client.name}
               </div>
               <div className="text-muted-foreground line-clamp-1 text-xs">
                 {client.clientId}
               </div>
-            </div>
+            </button>
           )
         },
         enableSorting: true,

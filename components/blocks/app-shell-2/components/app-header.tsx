@@ -31,6 +31,7 @@ export function AppHeader({ realm }: { realm: string }) {
         ? "/admin/import"
         : "/admin/users"
   const userDetail = /^\/admin\/users\/[^/]+$/.test(pathname)
+  const clientDetail = /^\/admin\/clients\/[^/]+$/.test(pathname)
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 pt-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -50,6 +51,10 @@ export function AppHeader({ realm }: { realm: string }) {
                   <BreadcrumbLink render={<Link href="/admin/users" />}>
                     Self Help Users
                   </BreadcrumbLink>
+                ) : clientDetail ? (
+                  <BreadcrumbLink render={<Link href="/admin/clients" />}>
+                    Clients
+                  </BreadcrumbLink>
                 ) : (
                   <BreadcrumbPage>{sectionLabel(pathname)}</BreadcrumbPage>
                 )}
@@ -59,6 +64,14 @@ export function AppHeader({ realm }: { realm: string }) {
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
                     <BreadcrumbPage>User</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </>
+              ) : null}
+              {clientDetail ? (
+                <>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>Client</BreadcrumbPage>
                   </BreadcrumbItem>
                 </>
               ) : null}

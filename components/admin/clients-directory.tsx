@@ -11,18 +11,16 @@ export function ClientsDirectory({
   total,
   canManage,
   realm,
-  client,
 }: {
   clients: AdminClient[]
   total: number
   canManage: boolean
   realm: string
-  client: AdminClient | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  function setSheet(next: { create?: boolean; edit?: string | null }) {
+  function setSheet(next: { create?: boolean }) {
     const query = withSheetParams(searchParams, next)
     router.replace(query ? `/admin/clients?${query}` : "/admin/clients")
   }
@@ -35,9 +33,9 @@ export function ClientsDirectory({
         canManage={canManage}
         realm={realm}
         onCreate={() => setSheet({ create: true })}
-        onEdit={(item) => setSheet({ edit: item.id })}
+        onView={(item) => router.push(`/admin/clients/${item.id}`)}
       />
-      <ClientFormSheet client={client} canManage={canManage} />
+      <ClientFormSheet canManage={canManage} />
     </>
   )
 }

@@ -1,9 +1,11 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { withActionError } from "@/lib/keycloak/errors"
+import { asActionResult, withActionError } from "@/lib/keycloak/errors"
 import {
   createClient,
+  deleteClient,
+  ensureSelfHelpTokenMappers,
   setClientEnabled,
   updateClient,
 } from "@/lib/keycloak/oidc-clients"
@@ -38,12 +40,13 @@ export async function createClientAction(formData: FormData) {
     })
 
     revalidatePath("/admin/clients")
+    revalidatePath(`/admin/clients/${id}`)
     return { id }
   }, "Could not create client")
 }
 
 export async function updateClientAction(formData: FormData) {
-  return withActionError(async () => {
+  return asActionResult(async () => {
     const id = formString(formData, "id")
     await updateClient(id, {
       name: formString(formData, "name") || undefined,
@@ -58,12 +61,29 @@ export async function updateClientAction(formData: FormData) {
       serviceAccountsEnabled: formChecked(formData, "serviceAccountsEnabled"),
     })
     revalidatePath("/admin/clients")
+    revalidatePath(`/admin/clients/${id}`)
   }, "Could not update client")
 }
 
 export async function setClientEnabledAction(id: string, enabled: boolean) {
-  return withActionError(async () => {
+  return asActionResult(async () => {
     await setClientEnabled(id, enabled)
     revalidatePath("/admin/clients")
+    revalidatePath(`/admin/clients/${id}`)
   }, "Could not update client")
+}
+
+export async function ensureSelfHelpMappersAction(id: string) {
+  return asActionResult(async () => {
+    await ensureSelfHelpTokenMappers(id)
+    revalidatePath("/admin/clients")
+    revalidatePath(`/admin/clients/${id}`)
+  }, "Could not add Self Help mappers")
+}
+
+export async function deleteClientAction(id: string) {
+  return asActionResult(async () => {
+    await deleteClient(id)
+    revalidatePath("/admin/clients")
+  }, "Could not delete client")
 }

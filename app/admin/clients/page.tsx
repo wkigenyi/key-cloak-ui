@@ -1,12 +1,9 @@
+import { redirect } from "next/navigation"
 import { Suspense } from "react"
 import { ClientDirectoryControls } from "@/components/admin/client-directory-controls"
 import { ClientsDirectory } from "@/components/admin/clients-directory"
 import { getWorkspaceRealm } from "@/lib/keycloak/workspace"
-import {
-  getClient,
-  listClients,
-  type ClientKind,
-} from "@/lib/keycloak/oidc-clients"
+import { listClients, type ClientKind } from "@/lib/keycloak/oidc-clients"
 
 function parseKind(value?: string): ClientKind {
   if (value === "built-in" || value === "all" || value === "applications") {
@@ -36,18 +33,19 @@ export default async function ClientsPage({
         ? false
         : undefined
   const creating = params.create === "1"
+  if (!creating && params.edit) {
+    redirect(`/admin/clients/${params.edit}`)
+  }
 
-  const [{ clients, total, canManage }, editing] = await Promise.all([
+  const [{ clients, total, canManage }, realm] = await Promise.all([
     listClients({
       kind,
       enabled,
       first: page * 50,
       max: 50,
     }),
-    !creating && params.edit ? getClient(params.edit) : Promise.resolve(null),
+    getWorkspaceRealm(),
   ])
-  const realm = await getWorkspaceRealm()
-  const client = editing?.client ?? null
 
   return (
     <div className="flex flex-col gap-3">
@@ -59,8 +57,7 @@ export default async function ClientsPage({
           clients={clients}
           total={total}
           canManage={canManage}
-        realm={realm}
-        client={client}
+          realm={realm}
         />
       </Suspense>
     </div>

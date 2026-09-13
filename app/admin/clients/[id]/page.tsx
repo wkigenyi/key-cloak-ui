@@ -1,4 +1,6 @@
-import { redirect } from "next/navigation"
+import { notFound } from "next/navigation"
+import { ClientDetail } from "@/components/admin/client-detail"
+import { getClientDetail } from "@/lib/keycloak/oidc-clients"
 
 export default async function ClientDetailPage({
   params,
@@ -6,5 +8,8 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  redirect(`/admin/clients?edit=${encodeURIComponent(id)}`)
+  const detail = await getClientDetail(id)
+  if (!detail) notFound()
+
+  return <ClientDetail detail={detail} />
 }
