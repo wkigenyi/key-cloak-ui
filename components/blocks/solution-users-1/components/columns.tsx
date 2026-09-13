@@ -437,6 +437,30 @@ export function createMemberColumns({
       },
     },
     {
+      accessorKey: "email",
+      id: "email",
+      header: ({ column }) => (
+        <DataGridColumnHeader
+          title="Email"
+          visibility={true}
+          column={column}
+        />
+      ),
+      cell: ({ row }) => (
+        <span className="text-sm" title={row.original.email || undefined}>
+          {row.original.email || "—"}
+        </span>
+      ),
+      size: 200,
+      enableSorting: true,
+      enableHiding: true,
+      enableResizing: true,
+      meta: {
+        headerTitle: "Email",
+        skeleton: <Skeleton className="h-4 w-40" />,
+      },
+    },
+    {
       accessorKey: "clientId",
       id: "clientId",
       header: ({ column }) => (
