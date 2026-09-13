@@ -1,6 +1,8 @@
 import "server-only"
 
 import type ClientRepresentation from "@keycloak/keycloak-admin-client/lib/defs/clientRepresentation"
+import type ProtocolMapperRepresentation from "@keycloak/keycloak-admin-client/lib/defs/protocolMapperRepresentation"
+import type KcAdminClient from "@keycloak/keycloak-admin-client"
 import {
   requireClientManager,
   requireClientViewer,
@@ -20,6 +22,49 @@ export const BUILT_IN_CLIENT_IDS = new Set([
 
 export const CONSOLE_CLIENT_ID = "keycloak-ui"
 export const SELF_HELP_CLIENT_ID = "self-help"
+
+const SELF_HELP_TOKEN_CLAIMS = [
+  { name: "clientId", attribute: "clientId", claim: "clientId" },
+  {
+    name: "fineract_client_id",
+    attribute: "fineract_client_id",
+    claim: "fineract_client_id",
+  },
+  { name: "saccoId", attribute: "saccoId", claim: "saccoId" },
+] as const
+
+function selfHelpProtocolMappers(): ProtocolMapperRepresentation[] {
+  return SELF_HELP_TOKEN_CLAIMS.map((mapper) => ({
+    name: mapper.name,
+    protocol: "openid-connect",
+    protocolMapper: "oidc-usermodel-attribute-mapper",
+    config: {
+      "user.attribute": mapper.attribute,
+      "claim.name": mapper.claim,
+      "jsonType.label": "String",
+      "id.token.claim": "true",
+      "access.token.claim": "true",
+      "userinfo.token.claim": "true",
+      "introspection.token.claim": "true",
+    },
+  }))
+}
+
+async function ensureSelfHelpClientMappers(
+  admin: KcAdminClient,
+  clientId?: string,
+) {
+  if (clientId && clientId !== SELF_HELP_CLIENT_ID) return
+  const found = await admin.clients.find({ clientId: SELF_HELP_CLIENT_ID })
+  const selfHelp = found[0]
+  if (!selfHelp?.id) return
+  const existing = await admin.clients.listProtocolMappers({ id: selfHelp.id })
+  const names = new Set((existing ?? []).map((item) => item.name).filter(Boolean))
+  for (const mapper of selfHelpProtocolMappers()) {
+    if (!mapper.name || names.has(mapper.name)) continue
+    await admin.clients.addProtocolMapper({ id: selfHelp.id }, mapper)
+  }
+}
 
 export type ClientKind = "applications" | "built-in" | "all"
 
@@ -98,6 +143,8 @@ export async function listClients(params: ListClientsParams = {}) {
     search: Boolean(params.search),
   })
 
+  await ensureSelfHelpClientMappers(client).catch(() => undefined)
+
   const kind = params.kind ?? "applications"
   let clients = found.map(toAdminClient)
 
@@ -125,6 +172,7 @@ export async function getClient(id: string) {
   const client = await getAdminClient()
   const found = await client.clients.findOne({ id })
   if (!found?.id) return null
+  await ensureSelfHelpClientMappers(client, found.clientId).catch(() => undefined)
   return {
     client: toAdminClient(found),
     canManage: canManageClients(session.roles),
@@ -181,7 +229,12 @@ export async function createClient(input: {
     attributes: {
       "pkce.code.challenge.method": "S256",
     },
+    protocolMappers:
+      clientId === SELF_HELP_CLIENT_ID ? selfHelpProtocolMappers() : undefined,
   })
+  if (clientId === SELF_HELP_CLIENT_ID) {
+    await ensureSelfHelpClientMappers(client, clientId)
+  }
   return id
 }
 
@@ -244,6 +297,7 @@ export async function updateClient(
         : (input.serviceAccountsEnabled ?? current.serviceAccountsEnabled),
     },
   )
+  await ensureSelfHelpClientMappers(client, clientId)
 }
 
 export async function setClientEnabled(id: string, enabled: boolean) {
