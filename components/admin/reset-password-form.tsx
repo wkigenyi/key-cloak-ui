@@ -7,9 +7,9 @@ import { resetUserPasswordAction } from "@/app/admin/users/actions"
 import { toastFormError } from "@/components/admin/form-action-error"
 import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { CheckboxField } from "@/components/admin/checkbox-field"
+import { PasswordInput } from "@/components/admin/password-input"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { validatePasswordPair } from "@/lib/keycloak/user-form"
 
 export function ResetPasswordForm({ userId }: { userId: string }) {
@@ -50,28 +50,24 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
       <input type="hidden" name="id" value={userId} />
       <Field data-invalid={password && passwordError ? true : undefined}>
         <FieldLabel htmlFor="reset-password">New password</FieldLabel>
-        <Input
+        <PasswordInput
           id="reset-password"
           name="password"
-          type="password"
           required
-          autoComplete="new-password"
           value={password}
-          aria-invalid={password && passwordError ? true : undefined}
-          onChange={(event) => setPassword(event.target.value)}
+          invalid={Boolean(password && passwordError)}
+          onChange={setPassword}
         />
       </Field>
       <Field data-invalid={passwordConfirm && passwordError ? true : undefined}>
         <FieldLabel htmlFor="reset-password-confirm">Confirm password</FieldLabel>
-        <Input
+        <PasswordInput
           id="reset-password-confirm"
           name="passwordConfirm"
-          type="password"
           required
-          autoComplete="new-password"
           value={passwordConfirm}
-          aria-invalid={passwordConfirm && passwordError ? true : undefined}
-          onChange={(event) => setPasswordConfirm(event.target.value)}
+          invalid={Boolean(passwordConfirm && passwordError)}
+          onChange={setPasswordConfirm}
         />
         {passwordConfirm && passwordError ? (
           <FieldError>{passwordError}</FieldError>
