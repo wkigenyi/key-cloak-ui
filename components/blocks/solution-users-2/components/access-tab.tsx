@@ -17,6 +17,7 @@ import { PendingSubmitContent } from "@/components/admin/form-submit-button"
 import { UserFormFields, userFormFieldsKey } from "@/components/admin/user-form"
 import { Button } from "@/components/ui/button"
 import type { AdminUser } from "@/lib/keycloak/admin"
+import { RequiredActionsCard } from "./authentication-tab"
 import { MemberSummaryFrame } from "./member-summary-frames"
 
 export function AccessTabContent({
@@ -47,6 +48,11 @@ export function AccessTabContent({
 
   return (
     <div className="space-y-4">
+      <RequiredActionsCard
+        userId={user.id}
+        requiredActions={user.requiredActions}
+        canManage={canManage}
+      />
       <form onSubmit={handleSubmit}>
         <Frame spacing="sm" className="text-foreground">
           <FrameHeader>

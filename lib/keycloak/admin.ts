@@ -209,13 +209,32 @@ export async function getUser(id: string) {
   }
 }
 
+async function clearSelfHelpRequiredActions(
+  client: KcAdminClient,
+  user: UserRepresentation,
+) {
+  if (!user.id) return user
+  const mapped = toAdminUser(user)
+  if (mapped.kind !== "self-help") return user
+  if ((user.requiredActions ?? []).length === 0) return user
+  await client.users.update(
+    { id: user.id },
+    { ...user, requiredActions: [] },
+  )
+  return (await client.users.findOne({ id: user.id })) ?? {
+    ...user,
+    requiredActions: [],
+  }
+}
+
 export async function getUserDetail(id: string): Promise<UserDetail | null> {
   const session = await requireUserViewer()
   const client = await getAdminClient()
   const realm = await getWorkspaceRealm()
-  const found = await client.users.findOne({ id })
+  let found = await client.users.findOne({ id })
   if (!found?.id) return null
   await ensureSelfHelpUserProfile(realm)
+  found = await clearSelfHelpRequiredActions(client, found)
 
   const [sessions, credentials, events] = await Promise.all([
     client.users.listSessions({ id }).catch(() => []),

@@ -43,6 +43,81 @@ function formatWhen(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
+export function RequiredActionsCard({
+  userId,
+  requiredActions,
+  canManage,
+}: {
+  userId: string
+  requiredActions: string[]
+  canManage: boolean
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+
+  if (requiredActions.length === 0) return null
+
+  function handleClearActions() {
+    startTransition(async () => {
+      const result = await clearUserRequiredActionsAction(userId)
+      if (!result.ok) {
+        toastFormError("Could not allow sign-in", result.error)
+        return
+      }
+      toast.success("Required actions cleared")
+      router.refresh()
+    })
+  }
+
+  return (
+    <Frame spacing="sm" className="text-foreground">
+      <FrameHeader>
+        <FrameTitle className="capitalize">Account setup</FrameTitle>
+        <FrameDescription className="dark:text-foreground/70">
+          Keycloak blocks tokens with “Account is not fully set up” until these
+          actions are finished. Self Help cannot complete them in the app — use
+          Allow sign-in.
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel className="px-5 py-2">
+        <div className="flex flex-col">
+          {requiredActions.map((action, index) => (
+            <Fragment key={action}>
+              {index > 0 ? <Separator /> : null}
+              <Item size="sm" className="px-0">
+                <ItemContent className="min-w-0 gap-1">
+                  <ItemTitle>
+                    {REQUIRED_ACTION_LABELS[action] ?? action}
+                  </ItemTitle>
+                  <ItemDescription>{action}</ItemDescription>
+                </ItemContent>
+                <ItemActions className="self-center">
+                  <Badge variant="warning-light">Required</Badge>
+                </ItemActions>
+              </Item>
+            </Fragment>
+          ))}
+        </div>
+      </FramePanel>
+      {canManage ? (
+        <FrameFooter className="flex-row justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            aria-busy={pending}
+            onClick={handleClearActions}
+          >
+            <PendingSubmitContent pending={pending} pendingLabel="Clearing…">
+              Allow sign-in
+            </PendingSubmitContent>
+          </Button>
+        </FrameFooter>
+      ) : null}
+    </Frame>
+  )
+}
+
 function credentialIcon(type: string) {
   if (type === "otp") return <ShieldCheckIcon aria-hidden="true" />
   if (type === "password") return <KeyRoundIcon aria-hidden="true" />
@@ -64,71 +139,16 @@ export function AuthenticationTabContent({
   credentials: UserCredentialInfo[]
   canManage: boolean
 }) {
-  const router = useRouter()
-  const [pending, startTransition] = useTransition()
   const password = credentials.find((item) => item.type === "password")
   const otp = credentials.filter((item) => item.type === "otp")
 
-  function handleClearActions() {
-    startTransition(async () => {
-      const result = await clearUserRequiredActionsAction(userId)
-      if (!result.ok) {
-        toastFormError("Could not allow sign-in", result.error)
-        return
-      }
-      toast.success("Required actions cleared")
-      router.refresh()
-    })
-  }
-
   return (
     <div className="space-y-4">
-      {requiredActions.length > 0 ? (
-        <Frame spacing="sm" className="text-foreground">
-          <FrameHeader>
-            <FrameTitle className="capitalize">Account setup</FrameTitle>
-            <FrameDescription className="dark:text-foreground/70">
-              Keycloak blocks tokens with “Account is not fully set up” until
-              these actions are finished.
-            </FrameDescription>
-          </FrameHeader>
-          <FramePanel className="px-5 py-2">
-            <div className="flex flex-col">
-              {requiredActions.map((action, index) => (
-                <Fragment key={action}>
-                  {index > 0 ? <Separator /> : null}
-                  <Item size="sm" className="px-0">
-                    <ItemContent className="min-w-0 gap-1">
-                      <ItemTitle>
-                        {REQUIRED_ACTION_LABELS[action] ?? action}
-                      </ItemTitle>
-                      <ItemDescription>{action}</ItemDescription>
-                    </ItemContent>
-                    <ItemActions className="self-center">
-                      <Badge variant="warning-light">Required</Badge>
-                    </ItemActions>
-                  </Item>
-                </Fragment>
-              ))}
-            </div>
-          </FramePanel>
-          {canManage ? (
-            <FrameFooter className="flex-row justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                aria-busy={pending}
-                onClick={handleClearActions}
-              >
-                <PendingSubmitContent pending={pending} pendingLabel="Clearing…">
-                  Allow sign-in
-                </PendingSubmitContent>
-              </Button>
-            </FrameFooter>
-          ) : null}
-        </Frame>
-      ) : null}
+      <RequiredActionsCard
+        userId={userId}
+        requiredActions={requiredActions}
+        canManage={canManage}
+      />
       <Frame spacing="sm" className="text-foreground">
         <FrameHeader>
           <FrameTitle className="capitalize">Credentials</FrameTitle>
